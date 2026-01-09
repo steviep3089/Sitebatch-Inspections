@@ -46,26 +46,26 @@ export default function Header({ session }) {
         <button className="btn btn-secondary" onClick={() => navigate('/admin-tools')}>
           Admin Tools
         </button>
-        <button className="btn btn-danger" onClick={handleSignOut}>
-          Sign Out
-        </button>
-      </div>
-      <div style={{ marginTop: '4px', textAlign: 'right' }}>
-        <button
-          type="button"
-          onClick={() => navigate('/change-password')}
-          style={{
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            margin: 0,
-            color: '#1976d2',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
-        >
-          Change password
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+          <button className="btn btn-danger" onClick={handleSignOut}>
+            Sign Out
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/change-password')}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              marginTop: '2px',
+              color: '#1976d2',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}
+          >
+            Change password
+          </button>
+        </div>
       </div>
     </div>
   )
