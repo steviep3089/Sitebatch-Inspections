@@ -30,19 +30,20 @@ export default function ChangePassword() {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword })
       if (error) throw error
-      setMessage('Password updated successfully. Redirecting you to the overview...')
+      setMessage('Password updated successfully. Please sign in with your new password.')
       setNewPassword('')
       setConfirmPassword('')
 
-      // Clear any forced password change flag and send the user into the app
+      // After changing the password (from email or inside the portal),
+      // sign the user out and send them back to the login screen so
+      // they start a clean session with their new credentials.
+      await supabase.auth.signOut()
+
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem('force_password_change')
-
-        // After a successful change (from email or in-portal), move
-        // the user into the main app view.
         setTimeout(() => {
-          window.location.replace('/overview')
-        }, 1200)
+          window.location.replace('/')
+        }, 1000)
       }
     } catch (error) {
       setMessage(error.message || 'Error updating password.')
