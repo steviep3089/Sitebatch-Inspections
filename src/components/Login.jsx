@@ -40,6 +40,11 @@ export default function Login() {
       })
       if (error) throw error
       setMessage('Password reset email sent. Please check your inbox.')
+
+      // Clear the success message after 5 seconds
+      setTimeout(() => {
+        setMessage('')
+      }, 5000)
     } catch (error) {
       setMessage(error.message || 'Error sending password reset email.')
     }
