@@ -7,7 +7,6 @@ export default function UserManagement() {
   const [showForm, setShowForm] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
     role: 'user',
   })
   const [currentUserRole, setCurrentUserRole] = useState(null)
@@ -54,10 +53,13 @@ export default function UserManagement() {
     setLoading(true)
 
     try {
+      // Generate a temporary password; user will set their own via email link
+      const tempPassword = Math.random().toString(36).slice(-12)
+
       // Create user in Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
-        password: formData.password,
+        password: tempPassword,
         options: {
           emailRedirectTo: window.location.origin,
         }
@@ -80,9 +82,19 @@ export default function UserManagement() {
         if (profileError) throw profileError
       }
 
-      alert('User created successfully! They will receive a confirmation email.')
+      // Send a password setup email so the user chooses their own password
+      const redirectUrl = `${window.location.origin}/change-password`
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(formData.email, {
+        redirectTo: redirectUrl,
+      })
+
+      if (resetError) {
+        console.error('Error sending password setup email:', resetError)
+      }
+
+      alert('User created successfully! They will receive an email to set their password.')
       setShowForm(false)
-      setFormData({ email: '', password: '', role: 'user' })
+      setFormData({ email: '', role: 'user' })
       fetchUsers()
     } catch (error) {
       console.error('Error creating user:', error)
@@ -154,20 +166,6 @@ export default function UserManagement() {
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
               />
-            </div>
-            <div className="form-group">
-              <label htmlFor="password">Temporary Password *</label>
-              <input
-                id="password"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
-                minLength="6"
-              />
-              <small style={{ color: '#666', fontSize: '0.85rem' }}>
-                User will receive an email to confirm their account
-              </small>
             </div>
             <div className="form-group">
               <label htmlFor="role">Role *</label>
