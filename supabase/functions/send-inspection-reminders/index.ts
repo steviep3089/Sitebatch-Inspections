@@ -1,9 +1,82 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts"
+
+// Polyfill Deno.writeAll for the older smtp/std library when running on newer Deno/edge runtime
+if (typeof (Deno as any).writeAll !== 'function') {
+  (Deno as any).writeAll = async (writer: any, data: Uint8Array) => {
+    let offset = 0
+    while (offset < data.length) {
+      const written = await writer.write(data.subarray(offset))
+      if (!written) break
+      offset += written
+    }
+  }
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+async function sendEmail(subject: string, html: string) {
+  // SMTP configuration (Gmail-friendly defaults)
+  const host = Deno.env.get('SMTP_HOST') || 'smtp.gmail.com'
+  const port = Number(Deno.env.get('SMTP_PORT') || '465')
+  const username = Deno.env.get('SMTP_USERNAME')
+  const password = Deno.env.get('SMTP_PASSWORD')
+  const from = Deno.env.get('SMTP_FROM') || username || ''
+  const toRaw = Deno.env.get('SMTP_TO')
+
+  if (!username || !password || !from || !toRaw) {
+    console.warn('SMTP env vars missing; logging email instead of sending.', {
+      host,
+      port,
+      hasUsername: !!username,
+      hasPassword: !!password,
+      from,
+      hasTo: !!toRaw,
+    })
+    console.log('Email to send (subject):', subject)
+    console.log('Email to send (html):', html)
+    return
+  }
+
+  const to = toRaw
+    .split(',')
+    .map((r) => r.trim().replace(/[.;,]+$/, '')) // strip accidental trailing punctuation
+    .filter(Boolean)
+
+  const client = new SmtpClient()
+
+  try {
+    // Use TLS connection (works with Gmail on port 465)
+    await client.connectTLS({
+      hostname: host,
+      port,
+      username,
+      password,
+    })
+
+    // Send one email per recipient to avoid SMTP libraries
+    // bundling multiple addresses into a single invalid RCPT command
+    for (const recipient of to) {
+      await client.send({
+        from,
+        to: recipient,
+        subject,
+        content: html,
+      })
+    }
+  } catch (error) {
+    console.error('SMTP email error:', error)
+  } finally {
+    try {
+      await client.close()
+    } catch (_) {
+      // ignore close errors
+    }
+  }
 }
 
 serve(async (req) => {
@@ -33,7 +106,9 @@ serve(async (req) => {
       .select(`
         id,
         due_date,
-        plant_items (plant_id, name, location),
+        assigned_to,
+        notes,
+        asset_items (asset_id, name, location),
         inspection_types (name)
       `)
       .eq('status', 'pending')
@@ -45,6 +120,9 @@ serve(async (req) => {
     const remindersCreated = []
     const emailsSent = []
 
+    // Base URL for the portal/dashboard (can be overridden via env when deployed)
+    const portalUrl = Deno.env.get('PORTAL_BASE_URL') ?? 'http://localhost:3000'
+
     // For each inspection, check if we need to create reminders
     for (const inspection of inspections || []) {
       const dueDate = new Date(inspection.due_date)
@@ -54,70 +132,83 @@ serve(async (req) => {
       const reminderDays = [30, 14, 7, 1]
       
       for (const days of reminderDays) {
-        if (daysUntilDue <= days) {
-          // Check if reminder already exists
-          const { data: existingReminder } = await supabaseClient
+        // Only care about inspections that are within this reminder window
+        if (daysUntilDue > days) continue
+
+        const shouldSendToday = daysUntilDue === days
+
+        // Check if reminder already exists
+        const { data: existingReminder } = await supabaseClient
+          .from('inspection_reminders')
+          .select('id, sent')
+          .eq('inspection_id', inspection.id)
+          .eq('days_before', days)
+          .single()
+
+        let reminderRecord = existingReminder
+
+        if (!reminderRecord) {
+          // Create new reminder
+          const reminderDate = new Date(dueDate)
+          reminderDate.setDate(reminderDate.getDate() - days)
+
+          const { data: newReminder, error: reminderError } = await supabaseClient
             .from('inspection_reminders')
-            .select('id, sent')
-            .eq('inspection_id', inspection.id)
-            .eq('days_before', days)
+            .insert({
+              inspection_id: inspection.id,
+              reminder_date: reminderDate.toISOString().split('T')[0],
+              days_before: days,
+              sent: false
+            })
+            .select()
             .single()
 
-          if (!existingReminder) {
-            // Create new reminder
-            const reminderDate = new Date(dueDate)
-            reminderDate.setDate(reminderDate.getDate() - days)
-
-            const { data: newReminder, error: reminderError } = await supabaseClient
-              .from('inspection_reminders')
-              .insert({
-                inspection_id: inspection.id,
-                reminder_date: reminderDate.toISOString().split('T')[0],
-                days_before: days,
-                sent: false
-              })
-              .select()
-              .single()
-
-            if (!reminderError && newReminder) {
-              remindersCreated.push(newReminder)
-            }
-          } else if (!existingReminder.sent && daysUntilDue === days) {
-            // Send email for this reminder
-            const emailSubject = `Inspection Due in ${days} day${days > 1 ? 's' : ''}: ${inspection.plant_items?.plant_id}`
-            const emailBody = `
-              <h2>Inspection Reminder</h2>
-              <p>This is a reminder that an inspection is due soon.</p>
-              <ul>
-                <li><strong>Plant ID:</strong> ${inspection.plant_items?.plant_id}</li>
-                <li><strong>Plant Name:</strong> ${inspection.plant_items?.name}</li>
-                <li><strong>Location:</strong> ${inspection.plant_items?.location || 'N/A'}</li>
-                <li><strong>Inspection Type:</strong> ${inspection.inspection_types?.name}</li>
-                <li><strong>Due Date:</strong> ${new Date(inspection.due_date).toLocaleDateString()}</li>
-                <li><strong>Days Until Due:</strong> ${daysUntilDue}</li>
-              </ul>
-              <p>Please ensure this inspection is completed on time to maintain compliance.</p>
-            `
-
-            // Here you would integrate with your email service (e.g., Resend, SendGrid, etc.)
-            // For now, we'll just log it
-            console.log('Email to send:', emailSubject)
-            
-            // Mark reminder as sent
-            await supabaseClient
-              .from('inspection_reminders')
-              .update({
-                sent: true,
-                sent_at: new Date().toISOString()
-              })
-              .eq('id', existingReminder.id)
-
-            emailsSent.push({
-              inspection_id: inspection.id,
-              days_before: days,
-              subject: emailSubject
-            })
+          if (!reminderError && newReminder) {
+            remindersCreated.push(newReminder)
+            reminderRecord = newReminder
           }
+        }
+
+        // If today is exactly the reminder threshold and we haven't sent yet, log an email
+        if (shouldSendToday && reminderRecord && !reminderRecord.sent) {
+          const emailSubject = `Inspection Due in ${days} day${days > 1 ? 's' : ''}: ${inspection.asset_items?.asset_id}`
+          const emailBody = `
+            <h2>Inspection Reminder</h2>
+            <p>This is a reminder that an inspection is due soon.</p>
+            <ul>
+              <li><strong>Asset ID:</strong> ${inspection.asset_items?.asset_id}</li>
+              <li><strong>Asset Name:</strong> ${inspection.asset_items?.name}</li>
+              <li><strong>Location:</strong> ${inspection.asset_items?.location || 'N/A'}</li>
+              <li><strong>Inspection Type:</strong> ${inspection.inspection_types?.name}</li>
+              <li><strong>Due Date:</strong> ${new Date(inspection.due_date).toLocaleDateString()}</li>
+              <li><strong>Days Until Due:</strong> ${daysUntilDue}</li>
+              <li><strong>Company Assigned To:</strong> ${inspection.assigned_to || 'N/A'}</li>
+              <li><strong>Notes:</strong> ${inspection.notes || 'N/A'}</li>
+            </ul>
+            <p>Please ensure this inspection is completed on time to maintain compliance.</p>
+            <p>
+              <a href="${portalUrl}" target="_blank" rel="noopener noreferrer">
+                Open Sitebatch Inspections Portal
+              </a>
+            </p>
+          `
+
+          await sendEmail(emailSubject, emailBody)
+
+          // Mark reminder as sent
+          await supabaseClient
+            .from('inspection_reminders')
+            .update({
+              sent: true,
+              sent_at: new Date().toISOString()
+            })
+            .eq('id', reminderRecord.id)
+
+          emailsSent.push({
+            inspection_id: inspection.id,
+            days_before: days,
+            subject: emailSubject
+          })
         }
       }
     }

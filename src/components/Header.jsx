@@ -43,6 +43,9 @@ export default function Header({ session }) {
         <button className="btn btn-secondary" onClick={() => navigate('/inspections')}>
           Inspections
         </button>
+        <button className="btn btn-secondary" onClick={() => navigate('/events')}>
+          Events
+        </button>
         {userRole === 'admin' && (
           <button className="btn btn-secondary" onClick={() => navigate('/users')}>
             Users

@@ -85,6 +85,16 @@ export default function AssetOverview() {
   const handleEventSubmit = async (e, assetId) => {
     e.preventDefault()
     try {
+      // Basic validation to avoid DB constraint errors
+      if (eventFormData.start_date && eventFormData.end_date) {
+        const start = new Date(eventFormData.start_date)
+        const end = new Date(eventFormData.end_date)
+        if (end < start) {
+          alert('End Date must be on or after Start Date.')
+          return
+        }
+      }
+
       const { data: { user } } = await supabase.auth.getUser()
       
       // Insert the event
@@ -99,15 +109,21 @@ export default function AssetOverview() {
 
       if (eventError) throw eventError
 
-      // Update the asset location if provided
-      if (eventFormData.location) {
-        const { error: updateError } = await supabase
-          .from('asset_items')
-          .update({ location: eventFormData.location })
-          .eq('id', assetId)
-
-        if (updateError) throw updateError
+      // Update the asset status (and location if provided) to reflect the event outcome
+      const updateFields = {
+        status: eventFormData.end_status,
       }
+
+      if (eventFormData.location) {
+        updateFields.location = eventFormData.location
+      }
+
+      const { error: updateError } = await supabase
+        .from('asset_items')
+        .update(updateFields)
+        .eq('id', assetId)
+
+      if (updateError) throw updateError
 
       setShowEventForm(null)
       setEventFormData({
@@ -120,8 +136,8 @@ export default function AssetOverview() {
       // Refresh data
       fetchAssetsWithInspections()
     } catch (error) {
-      console.error('Error adding event:', error)
-      alert('Error adding event: ' + error.message)
+      console.error('Error adding event:', error, error?.message, error?.details)
+      alert('Error adding event. Please check the console for details.')
     }
   }
 
@@ -154,6 +170,26 @@ export default function AssetOverview() {
     if (dueDate <= thirtyDaysFromNow) return 'status-due-soon'
     
     return 'status-compliant'
+  }
+
+  const getDueLabel = (inspection) => {
+    if (!inspection.due_date || inspection.status !== 'pending') return ''
+
+    const oneDayMs = 24 * 60 * 60 * 1000
+    const today = new Date()
+    const dueDate = new Date(inspection.due_date)
+    today.setHours(0, 0, 0, 0)
+    dueDate.setHours(0, 0, 0, 0)
+
+    const diffDays = Math.round((dueDate - today) / oneDayMs)
+
+    if (diffDays === 0) return 'Due today'
+    if (diffDays > 0) {
+      return `${diffDays} day${diffDays === 1 ? '' : 's'} until due`
+    }
+
+    const overdueDays = Math.abs(diffDays)
+    return `${overdueDays} day${overdueDays === 1 ? '' : 's'} overdue`
   }
 
   if (loading) {
@@ -370,9 +406,16 @@ export default function AssetOverview() {
                                 </p>
                               )}
                             </div>
-                            <span className={`status-badge ${getInspectionStatusClass(inspection)}`}>
-                              {inspection.status.toUpperCase()}
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                              <span className={`status-badge ${getInspectionStatusClass(inspection)}`}>
+                                {inspection.status.toUpperCase()}
+                              </span>
+                              {getDueLabel(inspection) && (
+                                <span style={{ fontSize: '0.8rem', color: '#555' }}>
+                                  {getDueLabel(inspection)}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}

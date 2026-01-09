@@ -184,6 +184,26 @@ export default function InspectionsList() {
     return 'status-compliant'
   }
 
+  const getDueLabel = (inspection) => {
+    if (!inspection.due_date || inspection.status !== 'pending') return ''
+
+    const oneDayMs = 24 * 60 * 60 * 1000
+    const today = new Date()
+    const dueDate = new Date(inspection.due_date)
+    today.setHours(0, 0, 0, 0)
+    dueDate.setHours(0, 0, 0, 0)
+
+    const diffDays = Math.round((dueDate - today) / oneDayMs)
+
+    if (diffDays === 0) return 'Due today'
+    if (diffDays > 0) {
+      return `${diffDays} day${diffDays === 1 ? '' : 's'} until due`
+    }
+
+    const overdueDays = Math.abs(diffDays)
+    return `${overdueDays} day${overdueDays === 1 ? '' : 's'} overdue`
+  }
+
   if (loading) {
     return <div>Loading inspections...</div>
   }
@@ -316,9 +336,16 @@ export default function InspectionsList() {
                     {new Date(inspection.due_date).toLocaleDateString()}
                   </td>
                   <td style={{ padding: '10px' }}>
-                    <span className={`status-badge ${getStatusBadge(inspection)}`}>
-                      {inspection.status.toUpperCase()}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span className={`status-badge ${getStatusBadge(inspection)}`}>
+                        {inspection.status.toUpperCase()}
+                      </span>
+                      {getDueLabel(inspection) && (
+                        <span style={{ fontSize: '0.8rem', color: '#555' }}>
+                          {getDueLabel(inspection)}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td style={{ padding: '10px' }}>
                     {inspection.status === 'pending' && (

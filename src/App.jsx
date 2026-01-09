@@ -10,6 +10,7 @@ import AssetOverview from './components/AssetOverview'
 import AssetList from './components/AssetList'
 import InspectionsList from './components/InspectionsList'
 import UserManagement from './components/UserManagement'
+import Events from './components/Events'
 import Header from './components/Header'
 
 function App() {
@@ -57,6 +58,7 @@ function App() {
             <Route path="/overview" element={<AssetOverview />} />
             <Route path="/plant" element={<AssetList />} />
             <Route path="/inspections" element={<InspectionsList />} />
+            <Route path="/events" element={<Events />} />
             <Route path="/users" element={<UserManagement />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

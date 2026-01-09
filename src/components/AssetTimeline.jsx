@@ -1,29 +1,64 @@
-import { useMemo } from 'react'
+import { useMemo, useRef, useEffect, useState } from 'react'
 
 export default function AssetTimeline({ asset, inspections, events = [] }) {
+  const timelineRef = useRef(null)
+  const [containerWidth, setContainerWidth] = useState(600)
+  const [viewWindow, setViewWindow] = useState({ start: null, end: null })
+
+  // Responsive: 4 months = container width
+  useEffect(() => {
+    if (timelineRef.current) {
+      setContainerWidth(timelineRef.current.offsetWidth)
+    }
+    const handleResize = () => {
+      if (timelineRef.current) {
+        setContainerWidth(timelineRef.current.offsetWidth)
+      }
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   const timelineData = useMemo(() => {
     if (inspections.length === 0 && events.length === 0) {
-      return { startDate: new Date(), endDate: new Date(), inspectionMarkers: [], eventPeriods: [] }
+      return { startDate: new Date(), endDate: new Date(), inspectionMarkers: [], eventPeriods: [], visibleWidthPx: containerWidth, totalWidthPx: containerWidth }
     }
 
-    // Get all dates to determine range
-    const allDates = [
-      ...inspections.map(i => new Date(i.completed_date || i.due_date)),
-      ...events.flatMap(e => [new Date(e.start_date), new Date(e.end_date)])
-    ]
+    // Get all due_dates and completed_dates for range
+    const allDueDates = inspections.map(i => new Date(i.due_date))
+    const allCompletedDates = inspections.filter(i => i.completed_date).map(i => new Date(i.completed_date))
+    const allEventDates = events.flatMap(e => [new Date(e.start_date), new Date(e.end_date)])
+    const allDates = [...allDueDates, ...allCompletedDates, ...allEventDates]
     
     const earliestDate = allDates.length > 0 ? new Date(Math.min(...allDates)) : new Date()
+    const latestDate = allDates.length > 0 ? new Date(Math.max(...allDates)) : new Date()
     
-    // End date is 12 months from today
-    const today = new Date()
-    const endDate = new Date(today)
-    endDate.setMonth(endDate.getMonth() + 12)
-    
-    // Use earlier of earliest date or today
-    const startDate = earliestDate < today ? earliestDate : today
+    // DEBUG: Log all dates and latestDate
+    console.log('allDates:', allDates.map(d => d.toISOString()), 'latestDate:', latestDate.toISOString())
 
-    // Calculate total range in days
+    // Window: 1 month before today, 3 months after today
+    const today = new Date()
+    const visibleStart = new Date(today)
+    visibleStart.setMonth(today.getMonth() - 1)
+    const visibleEnd = new Date(today)
+    visibleEnd.setMonth(today.getMonth() + 3)
+
+    // Timeline range: min(earliestDate, visibleStart) to max(latestDate, visibleEnd)
+    const startDate = earliestDate < visibleStart ? earliestDate : visibleStart
+    const endDate = latestDate > visibleEnd ? latestDate : visibleEnd
     const totalDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))
+
+    // Calculate the percent of the total timeline that 4 months represents
+    const fourMonthsDays = Math.ceil((visibleEnd - visibleStart) / (1000 * 60 * 60 * 24))
+    const visiblePercent = (fourMonthsDays / totalDays)
+    const visibleWidthPx = containerWidth
+    const totalWidthPx = visibleWidthPx / visiblePercent
+
+    // Visible window in percent
+    const visibleStartDays = Math.ceil((visibleStart - startDate) / (1000 * 60 * 60 * 24))
+    const visibleEndDays = Math.ceil((visibleEnd - startDate) / (1000 * 60 * 60 * 24))
+    const visibleStartPercent = (visibleStartDays / totalDays) * 100
+    const visibleEndPercent = (visibleEndDays / totalDays) * 100
 
     // Create inspection markers
     const inspectionMarkers = inspections.map(inspection => {
@@ -92,9 +127,46 @@ export default function AssetTimeline({ asset, inspections, events = [] }) {
       inspectionMarkers, 
       eventPeriods,
       commissionMarker,
-      todayPosition: Math.max(0, Math.min(100, todayPosition)) 
+      todayPosition: Math.max(0, Math.min(100, todayPosition)),
+      visibleStartPercent,
+      visibleEndPercent,
+      visibleStart,
+      visibleEnd,
+      visibleWidthPx,
+      totalWidthPx,
+      totalDays
     }
-  }, [asset, inspections, events])
+  }, [asset, inspections, events, containerWidth])
+
+  // Auto-scroll to 4‑month window on mount and keep header dates aligned with visible section
+  useEffect(() => {
+    const container = timelineRef.current
+    if (!container) return
+
+    const dayMs = 1000 * 60 * 60 * 24
+
+    const updateViewWindow = () => {
+      const pxPerDay = timelineData.totalWidthPx / timelineData.totalDays
+      const scrollLeft = container.scrollLeft
+      const visibleWidth = container.clientWidth
+
+      const leftDays = scrollLeft / pxPerDay
+      const rightDays = (scrollLeft + visibleWidth) / pxPerDay
+
+      const start = new Date(timelineData.startDate.getTime() + leftDays * dayMs)
+      const end = new Date(timelineData.startDate.getTime() + rightDays * dayMs)
+      setViewWindow({ start, end })
+    }
+
+    // Initial scroll so that 1 month before today is at left of view
+    const pxPerDay = timelineData.totalWidthPx / timelineData.totalDays
+    const offsetDays = Math.max(0, Math.floor((timelineData.visibleStart - timelineData.startDate) / dayMs))
+    container.scrollLeft = offsetDays * pxPerDay
+    updateViewWindow()
+
+    container.addEventListener('scroll', updateViewWindow)
+    return () => container.removeEventListener('scroll', updateViewWindow)
+  }, [timelineData.startDate, timelineData.visibleStart, timelineData.totalWidthPx, timelineData.totalDays])
 
   return (
     <div style={{ marginTop: '15px' }}>
@@ -105,137 +177,200 @@ export default function AssetTimeline({ asset, inspections, events = [] }) {
         fontSize: '0.85rem',
         color: '#666'
       }}>
-        <span>{timelineData.startDate.toLocaleDateString()}</span>
+        <span>{(viewWindow.start || timelineData.visibleStart).toLocaleDateString()}</span>
         <span>Timeline</span>
-        <span>{timelineData.endDate.toLocaleDateString()}</span>
+        <span>{(viewWindow.end || timelineData.visibleEnd).toLocaleDateString()}</span>
       </div>
 
-      {/* Timeline bar */}
-      <div style={{ 
-        position: 'relative',
-        height: '40px',
-        background: asset.status === 'active' 
-          ? 'linear-gradient(to right, #d4edda 0%, #d4edda 100%)'
-          : 'linear-gradient(to right, #e2e3e5 0%, #e2e3e5 100%)',
-        borderRadius: '8px',
-        border: '2px solid #ddd'
-      }}>
-        {/* Event periods (horizontal bars) */}
-        {timelineData.eventPeriods.map((eventPeriod, index) => (
-          <div
-            key={`event-${index}`}
-            style={{
-              position: 'absolute',
-              left: `${eventPeriod.startPosition}%`,
-              width: `${eventPeriod.width}%`,
-              top: '5px',
-              bottom: '5px',
-              background: eventPeriod.event.end_status === 'active' 
-                ? 'rgba(76, 175, 80, 0.4)' 
-                : 'rgba(226, 227, 229, 0.6)',
-              border: eventPeriod.event.end_status === 'active'
-                ? '2px solid #4CAF50'
-                : '2px solid #999',
-              borderRadius: '4px',
-              zIndex: 1,
-              cursor: 'pointer'
-            }}
-            title={`${eventPeriod.event.description}\n${eventPeriod.startDate.toLocaleDateString()} - ${eventPeriod.endDate.toLocaleDateString()}\nStatus: ${eventPeriod.event.end_status.toUpperCase()}`}
-          >
-            <div style={{
-              fontSize: '0.7rem',
-              padding: '2px 4px',
-              color: eventPeriod.event.end_status === 'active' ? '#2e7d32' : '#666',
-              fontWeight: 'bold',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}>
-              {eventPeriod.event.description.substring(0, 20)}{eventPeriod.event.description.length > 20 ? '...' : ''}
-            </div>
-          </div>
-        ))}
+      {/* Intermediate markers across current visible window */}
+      {(() => {
+        const start = viewWindow.start || timelineData.visibleStart
+        const end = viewWindow.end || timelineData.visibleEnd
+        const diffMs = end - start
+        if (diffMs <= 0) return null
 
-        {/* Today marker */}
-        <div style={{
-          position: 'absolute',
-          left: `${timelineData.todayPosition}%`,
-          top: 0,
-          bottom: 0,
-          width: '2px',
-          background: '#333',
-          zIndex: 2
-        }}>
-          <div style={{
-            position: 'absolute',
-            top: '-20px',
-            left: '-15px',
-            fontSize: '0.75rem',
-            fontWeight: 'bold',
-            color: '#333'
-          }}>
-            Today
-          </div>
-        </div>
+        const markers = []
+        for (let i = 1; i <= 4; i++) {
+          const ratio = i / 5 // 4 markers between start and end
+          const d = new Date(start.getTime() + diffMs * ratio)
+          markers.push(
+            <span key={i} style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', color: '#999' }}>
+              {d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
+            </span>
+          )
+        }
 
-        {/* Commission marker */}
-        {timelineData.commissionMarker && (
+        return (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', marginTop: '-4px' }}>
+            <span style={{ width: '60px' }} />
+            {markers}
+            <span style={{ width: '60px' }} />
+          </div>
+        )
+      })()}
+
+      {/* Scrollable Timeline bar */}
+      <div
+        ref={timelineRef}
+        style={{
+          position: 'relative',
+          height: '80px',
+          overflowX: 'scroll',
+          overflowY: 'visible',
+          // Neutral base; event periods show status colouring
+          background: 'linear-gradient(to right, #f5f5f5 0%, #f5f5f5 100%)',
+          borderRadius: '8px',
+          border: '2px solid #ddd',
+          whiteSpace: 'nowrap',
+          width: '100%',
+          minWidth: '300px',
+          scrollbarWidth: 'auto',
+        }}
+      >
+        <div
+          style={{
+            position: 'relative',
+            height: '100%',
+            width: timelineData.totalWidthPx + 'px',
+          }}
+        >
+          {/* Visible window highlight */}
           <div
             style={{
               position: 'absolute',
-              left: `${timelineData.commissionMarker.position}%`,
-              top: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: '3px',
-              height: '100%',
-              background: '#4CAF50',
-              zIndex: 1
+              left: `${timelineData.visibleStartPercent}%`,
+              width: `${timelineData.visibleEndPercent - timelineData.visibleStartPercent}%`,
+              top: 0,
+              bottom: 0,
+              background: 'rgba(33,150,243,0.08)',
+              zIndex: 0,
+              pointerEvents: 'none',
+              borderLeft: '2px dashed #2196F3',
+              borderRight: '2px dashed #2196F3',
             }}
-            title={`Commissioned: ${timelineData.commissionMarker.date.toLocaleDateString()}`}
           />
-        )}
-
-        {/* Inspection markers */}
-        {timelineData.inspectionMarkers.map((marker, index) => {
-          const color = marker.isCompleted ? '#4CAF50' : 
-                       marker.isOverdue ? '#f44336' : 
-                       marker.isDueSoon ? '#ff9800' : '#2196F3'
-
-          return (
+          {/* Event periods (horizontal bars) */}
+          {timelineData.eventPeriods.map((eventPeriod, index) => (
             <div
-              key={`inspection-${index}`}
+              key={`event-${index}`}
               style={{
                 position: 'absolute',
-                left: `${marker.position}%`,
-                top: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: '12px',
-                height: '12px',
-                borderRadius: '50%',
-                background: color,
-                border: '2px solid white',
-                cursor: 'pointer',
-                zIndex: 3,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                left: `${eventPeriod.startPosition}%`,
+                width: `${eventPeriod.width}%`,
+                top: 0,
+                bottom: 0,
+                background: eventPeriod.event.end_status === 'active' 
+                  ? 'rgba(76, 175, 80, 0.4)' 
+                  : 'rgba(226, 227, 229, 0.6)',
+                border: eventPeriod.event.end_status === 'active'
+                  ? '2px solid #4CAF50'
+                  : '2px solid #999',
+                borderRadius: '8px',
+                zIndex: 1,
+                cursor: 'pointer'
               }}
-              title={`${marker.inspection.inspection_types?.name}\n${marker.date.toLocaleDateString()}\nStatus: ${marker.inspection.status}`}
-            />
-          )
-        })}
+              title={`${eventPeriod.event.description}\n${eventPeriod.startDate.toLocaleDateString()} - ${eventPeriod.endDate.toLocaleDateString()}\nStatus: ${eventPeriod.event.end_status.toUpperCase()}`}
+            >
+              <div style={{
+                fontSize: '0.7rem',
+                padding: '2px 4px',
+                color: eventPeriod.event.end_status === 'active' ? '#2e7d32' : '#666',
+                fontWeight: 'bold',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                {eventPeriod.event.description.substring(0, 20)}{eventPeriod.event.description.length > 20 ? '...' : ''}
+              </div>
+            </div>
+          ))}
 
-        {/* Decommissioned overlay */}
-        {asset.status === 'decommissioned' && (
+          {/* Today marker */}
           <div style={{
             position: 'absolute',
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: '0',
-            background: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.05) 10px, rgba(0,0,0,0.05) 20px)',
-            borderRadius: '8px',
-            pointerEvents: 'none'
-          }} />
-        )}
+            left: `${timelineData.todayPosition}%`,
+            top: 14,
+            bottom: 6,
+            width: '2px',
+            background: '#333',
+            zIndex: 2
+          }}>
+            <div style={{
+              position: 'absolute',
+              top: '-16px',
+              left: '-18px',
+              fontSize: '0.75rem',
+              fontWeight: 'bold',
+              color: '#333',
+              background: 'white',
+              padding: '0 2px',
+              borderRadius: '3px'
+            }}>
+              Today
+            </div>
+          </div>
+
+          {/* Commission marker */}
+          {timelineData.commissionMarker && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${timelineData.commissionMarker.position}%`,
+                top: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '3px',
+                height: '100%',
+                background: '#4CAF50',
+                zIndex: 1
+              }}
+              title={`Commissioned: ${timelineData.commissionMarker.date.toLocaleDateString()}`}
+            />
+          )}
+
+          {/* Inspection markers */}
+          {timelineData.inspectionMarkers.map((marker, index) => {
+            const color = marker.isCompleted ? '#4CAF50' : 
+                         marker.isOverdue ? '#f44336' : 
+                         marker.isDueSoon ? '#ff9800' : '#2196F3'
+
+            return (
+              <div
+                key={`inspection-${index}`}
+                style={{
+                  position: 'absolute',
+                  left: `${marker.position}%`,
+                  top: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '50%',
+                  background: color,
+                  border: '2px solid white',
+                  cursor: 'pointer',
+                  zIndex: 3,
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }}
+                title={`${marker.inspection.inspection_types?.name}\n${marker.date.toLocaleDateString()}\nStatus: ${marker.inspection.status}`}
+              />
+            )
+          })}
+
+          {/* Decommissioned overlay */}
+          {asset.status === 'decommissioned' && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: '0',
+              background: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.05) 10px, rgba(0,0,0,0.05) 20px)',
+              borderRadius: '8px',
+              pointerEvents: 'none'
+            }} />
+          )}
+
+          {/* (Month markers and extra window labels removed for cleaner layout; header shows 4-month range) */}
+        </div>
       </div>
 
       {/* Legend */}
