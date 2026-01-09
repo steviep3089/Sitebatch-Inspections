@@ -31,7 +31,7 @@ export default function Header({ session }) {
     <div className="header">
       <h1>Sitebatch Inspections</h1>
       <div className="nav-buttons">
-        <button className="btn btn-secondary" onClick={() => navigate('/')}>
+        <button className="btn btn-secondary" onClick={() => navigate('/dashboard')}>
           Dashboard
         </button>
         <button className="btn btn-secondary" onClick={() => navigate('/overview')}>
@@ -43,14 +43,9 @@ export default function Header({ session }) {
         <button className="btn btn-secondary" onClick={() => navigate('/inspections')}>
           Inspections
         </button>
-        <button className="btn btn-secondary" onClick={() => navigate('/events')}>
-          Events
+        <button className="btn btn-secondary" onClick={() => navigate('/admin-tools')}>
+          Admin Tools
         </button>
-        {userRole === 'admin' && (
-          <button className="btn btn-secondary" onClick={() => navigate('/users')}>
-            Users
-          </button>
-        )}
         <button className="btn btn-danger" onClick={handleSignOut}>
           Sign Out
         </button>

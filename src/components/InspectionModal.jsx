@@ -37,6 +37,12 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
     }
   }, [inspection])
 
+  const certsUrl =
+    formData.certs_link ||
+    inspection?.certs_link ||
+    inspection?.inspection_types?.google_drive_url ||
+    null
+
   const canMarkComplete = () => {
     // Check 1: Date Next Inspection Required - must have date OR N/A checked
     const nextInspectionValid = formData.next_inspection_na || formData.next_inspection_date
@@ -247,30 +253,63 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
         </div>
 
         <div style={{ marginBottom: '15px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <input
-              type="checkbox"
-              id="certs_received_checkbox"
-              checked={formData.certs_received}
-              onChange={(e) => setFormData({ ...formData, certs_received: e.target.checked })}
-            />
-            <label htmlFor="certs_received_checkbox" style={{ margin: 0, cursor: 'pointer' }}>
-              Certs Received *
-            </label>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <input
+                type="checkbox"
+                id="certs_received_checkbox"
+                checked={formData.certs_received}
+                onChange={(e) => setFormData({ ...formData, certs_received: e.target.checked })}
+              />
+              <label htmlFor="certs_received_checkbox" style={{ margin: 0, cursor: 'pointer' }}>
+                Certs Received *
+              </label>
+            </div>
+            {certsUrl && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                onClick={() => {
+                  window.open(
+                    certsUrl,
+                    '_blank',
+                    'noopener,noreferrer'
+                  )
+                }}
+              >
+                Open Folder
+              </button>
+            )}
           </div>
         </div>
 
         {formData.certs_received && (
           <div className="form-group">
             <label htmlFor="certs_link">Google Drive Link for Certs *</label>
-            <input
-              id="certs_link"
-              type="url"
-              value={formData.certs_link}
-              onChange={(e) => setFormData({ ...formData, certs_link: e.target.value })}
-              placeholder="https://drive.google.com/..."
-              required={formData.certs_received}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input
+                id="certs_link"
+                type="url"
+                value={formData.certs_link}
+                onChange={(e) => setFormData({ ...formData, certs_link: e.target.value })}
+                placeholder="https://drive.google.com/..."
+                required={formData.certs_received}
+                style={{ flex: 1 }}
+              />
+              {formData.certs_link && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                  onClick={() => {
+                    window.open(formData.certs_link, '_blank', 'noopener,noreferrer')
+                  }}
+                >
+                  ↗
+                </button>
+              )}
+            </div>
           </div>
         )}
 

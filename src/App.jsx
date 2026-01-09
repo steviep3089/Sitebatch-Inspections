@@ -11,6 +11,8 @@ import AssetList from './components/AssetList'
 import InspectionsList from './components/InspectionsList'
 import UserManagement from './components/UserManagement'
 import Events from './components/Events'
+import InspectionTypeDriveLinks from './components/InspectionTypeDriveLinks'
+import AdminTools from './components/AdminTools'
 import Header from './components/Header'
 
 function App() {
@@ -34,6 +36,22 @@ function App() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // After a successful login, send the user to Overview once per session
+  useEffect(() => {
+    if (!session) return
+
+    const token = session?.access_token
+    if (!token) return
+
+    const key = `redirected_for_token_${token}`
+    if (!sessionStorage.getItem(key)) {
+      sessionStorage.setItem(key, 'true')
+      if (window.location.pathname !== '/overview') {
+        window.location.replace('/overview')
+      }
+    }
+  }, [session])
+
   if (loading) {
     return (
       <div className="App">
@@ -54,12 +72,15 @@ function App() {
         <Header session={session} />
         <div className="container">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<Navigate to="/overview" replace />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/overview" element={<AssetOverview />} />
             <Route path="/plant" element={<AssetList />} />
             <Route path="/inspections" element={<InspectionsList />} />
             <Route path="/events" element={<Events />} />
             <Route path="/users" element={<UserManagement />} />
+            <Route path="/inspection-folders" element={<InspectionTypeDriveLinks />} />
+            <Route path="/admin-tools" element={<AdminTools />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

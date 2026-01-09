@@ -80,6 +80,10 @@ export default function Events() {
     return <div>Loading events...</div>
   }
 
+  if (currentUserRole !== 'admin') {
+    return <div>You do not have access to Events.</div>
+  }
+
   return (
     <div>
       <h2 style={{ marginBottom: '20px' }}>Events</h2>

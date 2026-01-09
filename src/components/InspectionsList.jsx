@@ -36,7 +36,7 @@ export default function InspectionsList() {
           status,
           notes,
           asset_items (asset_id, name),
-          inspection_types (name)
+          inspection_types (name, google_drive_url)
         `)
         .order('due_date', { ascending: true })
 
@@ -331,7 +331,9 @@ export default function InspectionsList() {
                 >
                   <td style={{ padding: '10px' }}>{inspection.asset_items?.asset_id}</td>
                   <td style={{ padding: '10px' }}>{inspection.asset_items?.name}</td>
-                  <td style={{ padding: '10px' }}>{inspection.inspection_types?.name}</td>
+                  <td style={{ padding: '10px' }}>
+                    {inspection.inspection_types?.name}
+                  </td>
                   <td style={{ padding: '10px' }}>
                     {new Date(inspection.due_date).toLocaleDateString()}
                   </td>

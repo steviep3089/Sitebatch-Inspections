@@ -10,6 +10,7 @@ export default function AssetOverview() {
   const [selectedInspection, setSelectedInspection] = useState(null)
   const [filterMode, setFilterMode] = useState('full') // full, due, complete
   const [loading, setLoading] = useState(true)
+  const [userRole, setUserRole] = useState(null)
   const [eventFormData, setEventFormData] = useState({
     start_date: '',
     end_date: '',
@@ -20,6 +21,27 @@ export default function AssetOverview() {
 
   useEffect(() => {
     fetchAssetsWithInspections()
+  }, [])
+
+  useEffect(() => {
+    const fetchRole = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data } = await supabase
+            .from('user_profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single()
+
+          setUserRole(data?.role || null)
+        }
+      } catch (error) {
+        console.error('Error fetching user role in AssetOverview:', error)
+      }
+    }
+
+    fetchRole()
   }, [])
 
   const fetchAssetsWithInspections = async () => {
@@ -51,7 +73,7 @@ export default function AssetOverview() {
               next_inspection_na,
               defect_portal_actions,
               defect_portal_na,
-              inspection_types (name, frequency)
+              inspection_types (name, frequency, google_drive_url)
             `)
             .eq('asset_id', asset.id)
             .order('due_date', { ascending: true })
@@ -261,17 +283,19 @@ export default function AssetOverview() {
                 </div>
                 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <button 
-                    className="btn btn-primary"
-                    style={{ padding: '6px 12px', fontSize: '0.9rem' }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setShowEventForm(showEventForm === asset.id ? null : asset.id)
-                    }}
-                  >
-                    {showEventForm === asset.id ? 'Cancel' : 'Add Event'}
-                  </button>
-                  
+                  {userRole === 'admin' && (
+                    <button 
+                      className="btn btn-primary"
+                      style={{ padding: '6px 12px', fontSize: '0.9rem' }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowEventForm(showEventForm === asset.id ? null : asset.id)
+                      }}
+                    >
+                      {showEventForm === asset.id ? 'Cancel' : 'Add Event'}
+                    </button>
+                  )}
+
                   <button 
                     style={{ 
                       background: 'none', 
@@ -288,7 +312,7 @@ export default function AssetOverview() {
               </div>
 
               {/* Event Form */}
-              {showEventForm === asset.id && (
+              {userRole === 'admin' && showEventForm === asset.id && (
                 <div style={{ marginTop: '15px', marginBottom: '15px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
                   <h4 style={{ marginBottom: '10px' }}>Add Event</h4>
                   <form onSubmit={(e) => handleEventSubmit(e, asset.id)}>
@@ -356,6 +380,7 @@ export default function AssetOverview() {
                 asset={asset} 
                 inspections={asset.inspections}
                 events={asset.events}
+                onInspectionClick={setSelectedInspection}
               />
 
               {/* Expanded Inspections List */}

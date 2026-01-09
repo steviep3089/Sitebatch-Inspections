@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect, useState } from 'react'
 
-export default function AssetTimeline({ asset, inspections, events = [] }) {
+export default function AssetTimeline({ asset, inspections, events = [], onInspectionClick }) {
   const timelineRef = useRef(null)
   const [containerWidth, setContainerWidth] = useState(600)
   const [viewWindow, setViewWindow] = useState({ start: null, end: null })
@@ -349,6 +349,11 @@ export default function AssetTimeline({ asset, inspections, events = [] }) {
                   cursor: 'pointer',
                   zIndex: 3,
                   boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }}
+                onClick={() => {
+                  if (onInspectionClick) {
+                    onInspectionClick(marker.inspection)
+                  }
                 }}
                 title={`${marker.inspection.inspection_types?.name}\n${marker.date.toLocaleDateString()}\nStatus: ${marker.inspection.status}`}
               />
