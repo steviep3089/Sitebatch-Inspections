@@ -42,11 +42,28 @@ function App() {
     if (!session) return
 
     const url = new URL(window.location.href)
-    const type = url.searchParams.get('type')
 
-    // If coming from a password recovery link, send straight to Change Password
+    // Supabase may put recovery params in the query string or the hash fragment
+    const searchType = url.searchParams.get('type')
+    let hashType = null
+
+    if (url.hash) {
+      const hashParams = new URLSearchParams(url.hash.startsWith('#') ? url.hash.substring(1) : url.hash)
+      hashType = hashParams.get('type')
+    }
+
+    const type = searchType || hashType
+
+    // If coming from a password recovery link, or already on the change-password page,
+    // do NOT redirect away to overview.
     if (type === 'recovery') {
-      window.history.replaceState({}, '', '/change-password')
+      // Clean up the URL to just /change-password once Supabase has created the session
+      if (window.location.pathname !== '/change-password') {
+        window.history.replaceState({}, '', '/change-password')
+      }
+      return
+    }
+    if (window.location.pathname === '/change-password') {
       return
     }
 
