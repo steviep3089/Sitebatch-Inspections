@@ -43,8 +43,10 @@ function App() {
 
     const url = new URL(window.location.href)
 
-    // Supabase may put recovery params in the query string or the hash fragment
-    const searchType = url.searchParams.get('type')
+    // Supabase may put params in the query string or the hash fragment
+    const searchParams = url.searchParams
+    const searchType = searchParams.get('type')
+    const from = searchParams.get('from')
     let hashType = null
 
     if (url.hash) {
@@ -57,7 +59,12 @@ function App() {
     // If coming from a password recovery link or a confirmed signup link,
     // force the user through the Change Password flow and do NOT redirect
     // them away to the overview yet.
-    if (type === 'recovery' || type === 'signup') {
+    if (
+      type === 'recovery' ||
+      type === 'signup' ||
+      from === 'recovery' ||
+      from === 'signup'
+    ) {
       // Mark that this session must go through a forced password change flow
       sessionStorage.setItem('force_password_change', 'true')
 
