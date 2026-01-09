@@ -13,6 +13,7 @@ import UserManagement from './components/UserManagement'
 import Events from './components/Events'
 import InspectionTypeDriveLinks from './components/InspectionTypeDriveLinks'
 import AdminTools from './components/AdminTools'
+import ChangePassword from './components/ChangePassword'
 import Header from './components/Header'
 
 function App() {
@@ -39,6 +40,15 @@ function App() {
   // After a successful login, send the user to Overview once per session
   useEffect(() => {
     if (!session) return
+
+    const url = new URL(window.location.href)
+    const type = url.searchParams.get('type')
+
+    // If coming from a password recovery link, send straight to Change Password
+    if (type === 'recovery') {
+      window.history.replaceState({}, '', '/change-password')
+      return
+    }
 
     const token = session?.access_token
     if (!token) return
@@ -81,6 +91,7 @@ function App() {
             <Route path="/users" element={<UserManagement />} />
             <Route path="/inspection-folders" element={<InspectionTypeDriveLinks />} />
             <Route path="/admin-tools" element={<AdminTools />} />
+            <Route path="/change-password" element={<ChangePassword />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

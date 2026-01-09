@@ -46,6 +46,9 @@ export default function Header({ session }) {
         <button className="btn btn-secondary" onClick={() => navigate('/admin-tools')}>
           Admin Tools
         </button>
+        <button className="btn btn-secondary" onClick={() => navigate('/change-password')}>
+          Change Password
+        </button>
         <button className="btn btn-danger" onClick={handleSignOut}>
           Sign Out
         </button>

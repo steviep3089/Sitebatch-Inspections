@@ -26,6 +26,25 @@ export default function Login() {
     }
   }
 
+  const handleForgotPassword = async () => {
+    setMessage('')
+
+    if (!email) {
+      setMessage('Please enter your email above first, then click Forgot password.')
+      return
+    }
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'https://sitebatch-inspections.vercel.app/change-password',
+      })
+      if (error) throw error
+      setMessage('Password reset email sent. Please check your inbox.')
+    } catch (error) {
+      setMessage(error.message || 'Error sending password reset email.')
+    }
+  }
+
   return (
     <div className="App">
       <div className="container" style={{ maxWidth: '400px', margin: '100px auto' }}>
@@ -85,6 +104,24 @@ export default function Login() {
               {loading ? 'Loading...' : 'Sign In'}
             </button>
           </form>
+
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            style={{
+              marginTop: '10px',
+              background: 'none',
+              border: 'none',
+              color: '#1976d2',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              fontSize: '0.9rem',
+              display: 'block',
+              textAlign: 'center'
+            }}
+          >
+            Forgot password?
+          </button>
           
           {message && (
             <p style={{ 
