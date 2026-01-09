@@ -62,8 +62,10 @@ export default function UserManagement() {
         password: tempPassword,
         options: {
           // When the user confirms their email, send them to the
-          // Change Password page in the portal
-          emailRedirectTo: `${window.location.origin}/change-password`,
+          // Change Password page in the portal and mark it as a
+          // signup flow so we can lock the app until they choose
+          // a password.
+          emailRedirectTo: `${window.location.origin}/change-password?from=signup`,
         }
       })
 

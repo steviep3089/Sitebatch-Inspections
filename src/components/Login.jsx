@@ -36,7 +36,7 @@ export default function Login() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'https://sitebatch-inspections.vercel.app/change-password',
+        redirectTo: `${window.location.origin}/change-password?from=recovery`,
       })
       if (error) throw error
       setMessage('Password reset email sent. Please check your inbox.')
