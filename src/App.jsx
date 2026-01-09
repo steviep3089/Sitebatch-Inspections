@@ -57,6 +57,9 @@ function App() {
     // If coming from a password recovery link, or already on the change-password page,
     // do NOT redirect away to overview.
     if (type === 'recovery') {
+      // Mark that this session must go through a forced password change flow
+      sessionStorage.setItem('force_password_change', 'true')
+
       // Clean up the URL to just /change-password once Supabase has created the session
       if (window.location.pathname !== '/change-password') {
         window.history.replaceState({}, '', '/change-password')
@@ -79,6 +82,9 @@ function App() {
     }
   }, [session])
 
+  const mustChangePassword =
+    typeof window !== 'undefined' && sessionStorage.getItem('force_password_change') === 'true'
+
   if (loading) {
     return (
       <div className="App">
@@ -90,7 +96,20 @@ function App() {
   }
 
   if (!session) {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('force_password_change')
+    }
     return <Login />
+  }
+
+  if (mustChangePassword) {
+    return (
+      <div className="App">
+        <div className="container">
+          <ChangePassword />
+        </div>
+      </div>
+    )
   }
 
   return (

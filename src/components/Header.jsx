@@ -24,6 +24,9 @@ export default function Header({ session }) {
   }
 
   const handleSignOut = async () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('force_password_change')
+    }
     await supabase.auth.signOut()
   }
 
