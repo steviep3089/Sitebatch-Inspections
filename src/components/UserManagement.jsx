@@ -61,7 +61,9 @@ export default function UserManagement() {
         email: formData.email,
         password: tempPassword,
         options: {
-          emailRedirectTo: window.location.origin,
+          // When the user confirms their email, send them to the
+          // Change Password page in the portal
+          emailRedirectTo: `${window.location.origin}/change-password`,
         }
       })
 
@@ -82,17 +84,7 @@ export default function UserManagement() {
         if (profileError) throw profileError
       }
 
-      // Send a password setup email so the user chooses their own password
-      const redirectUrl = `${window.location.origin}/change-password`
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(formData.email, {
-        redirectTo: redirectUrl,
-      })
-
-      if (resetError) {
-        console.error('Error sending password setup email:', resetError)
-      }
-
-      alert('User created successfully! They will receive an email to set their password.')
+      alert('User created successfully! They will receive an email to confirm and set their password.')
       setShowForm(false)
       setFormData({ email: '', role: 'user' })
       fetchUsers()

@@ -54,9 +54,10 @@ function App() {
 
     const type = searchType || hashType
 
-    // If coming from a password recovery link, or already on the change-password page,
-    // do NOT redirect away to overview.
-    if (type === 'recovery') {
+    // If coming from a password recovery link or a confirmed signup link,
+    // force the user through the Change Password flow and do NOT redirect
+    // them away to the overview yet.
+    if (type === 'recovery' || type === 'signup') {
       // Mark that this session must go through a forced password change flow
       sessionStorage.setItem('force_password_change', 'true')
 
