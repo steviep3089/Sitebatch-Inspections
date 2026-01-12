@@ -21,7 +21,42 @@ export default function AssetTimeline({ asset, inspections, events = [], onInspe
 
   const timelineData = useMemo(() => {
     if (inspections.length === 0 && events.length === 0) {
-      return { startDate: new Date(), endDate: new Date(), inspectionMarkers: [], eventPeriods: [], visibleWidthPx: containerWidth, totalWidthPx: containerWidth }
+      const today = new Date()
+
+      const visibleStart = new Date(today)
+      visibleStart.setMonth(today.getMonth() - 1)
+
+      const visibleEnd = new Date(today)
+      visibleEnd.setMonth(today.getMonth() + 3)
+
+      const startDate = visibleStart
+      const endDate = visibleEnd
+      const totalDays = Math.max(
+        1,
+        Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))
+      )
+
+      const visibleWidthPx = containerWidth
+      const totalWidthPx = visibleWidthPx
+
+      const todayDays = Math.ceil((today - startDate) / (1000 * 60 * 60 * 24))
+      const todayPosition = (todayDays / totalDays) * 100
+
+      return {
+        startDate,
+        endDate,
+        inspectionMarkers: [],
+        eventPeriods: [],
+        commissionMarker: null,
+        todayPosition: Math.max(0, Math.min(100, todayPosition)),
+        visibleStartPercent: 0,
+        visibleEndPercent: 100,
+        visibleStart,
+        visibleEnd,
+        visibleWidthPx,
+        totalWidthPx,
+        totalDays,
+      }
     }
 
     // Get all due_dates and completed_dates for range
@@ -177,15 +212,19 @@ export default function AssetTimeline({ asset, inspections, events = [], onInspe
         fontSize: '0.85rem',
         color: '#666'
       }}>
-        <span>{(viewWindow.start || timelineData.visibleStart).toLocaleDateString()}</span>
+        <span>
+          {(viewWindow.start || timelineData.visibleStart || timelineData.startDate).toLocaleDateString()}
+        </span>
         <span>Timeline</span>
-        <span>{(viewWindow.end || timelineData.visibleEnd).toLocaleDateString()}</span>
+        <span>
+          {(viewWindow.end || timelineData.visibleEnd || timelineData.endDate).toLocaleDateString()}
+        </span>
       </div>
 
       {/* Intermediate markers across current visible window */}
       {(() => {
-        const start = viewWindow.start || timelineData.visibleStart
-        const end = viewWindow.end || timelineData.visibleEnd
+        const start = viewWindow.start || timelineData.visibleStart || timelineData.startDate
+        const end = viewWindow.end || timelineData.visibleEnd || timelineData.endDate
         const diffMs = end - start
         if (diffMs <= 0) return null
 
@@ -269,7 +308,11 @@ export default function AssetTimeline({ asset, inspections, events = [], onInspe
                 zIndex: 1,
                 cursor: 'pointer'
               }}
-              title={`${eventPeriod.event.description}\n${eventPeriod.startDate.toLocaleDateString()} - ${eventPeriod.endDate.toLocaleDateString()}\nStatus: ${eventPeriod.event.end_status.toUpperCase()}`}
+              title={
+                eventPeriod.startDate && eventPeriod.endDate
+                  ? `${eventPeriod.event.description}\n${eventPeriod.startDate.toLocaleDateString()} - ${eventPeriod.endDate.toLocaleDateString()}\nStatus: ${eventPeriod.event.end_status.toUpperCase()}`
+                  : eventPeriod.event.description
+              }
             >
               <div style={{
                 fontSize: '0.7rem',

@@ -61,6 +61,9 @@ export default function AdminTools() {
         <Link className="btn btn-secondary" to="/users">
           Users
         </Link>
+        <Link className="btn btn-secondary" to="/inspection-items">
+          Inspection Item Templates
+        </Link>
       </div>
     </div>
   )

@@ -8,8 +8,18 @@ export default function AssetList() {
   const [showForm, setShowForm] = useState(false)
   const [showEventForm, setShowEventForm] = useState(null) // Track which asset's event form is open
   const [expandedAsset, setExpandedAsset] = useState(null)
+  const [editingAssetId, setEditingAssetId] = useState(null)
+  const [editFormData, setEditFormData] = useState({
+    asset_id: '',
+    name: '',
+    location: '',
+    status: 'active',
+    install_date: '',
+    notes: '',
+  })
   const [formData, setFormData] = useState({
     asset_id: '',
+    name: '',
     location: '',
     status: 'active',
     install_date: '',
@@ -46,13 +56,23 @@ export default function AssetList() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      const { error } = await supabase.from('asset_items').insert([formData])
+      const { error } = await supabase.from('asset_items').insert([
+        {
+          asset_id: formData.asset_id,
+          name: formData.name || formData.asset_id,
+          location: formData.location,
+          status: formData.status,
+          install_date: formData.install_date,
+          notes: formData.notes,
+        },
+      ])
 
       if (error) throw error
 
       setShowForm(false)
       setFormData({
         asset_id: '',
+        name: '',
         location: '',
         status: 'active',
         install_date: '',
@@ -61,7 +81,69 @@ export default function AssetList() {
       fetchAssetItems()
     } catch (error) {
       console.error('Error adding asset:', error)
-      alert('Error adding asset: ' + error.message)
+      alert('Error adding asset: ' + (error.message || error.details || 'Unknown error'))
+    }
+  }
+
+  const startEditAsset = (asset) => {
+    setEditingAssetId(asset.id)
+    setEditFormData({
+      asset_id: asset.asset_id || '',
+      name: asset.name || '',
+      location: asset.location || '',
+      status: asset.status || 'active',
+      install_date: asset.install_date || '',
+      notes: asset.notes || '',
+    })
+  }
+
+  const handleEditSubmit = async (e, assetId) => {
+    e.preventDefault()
+    try {
+      const { error } = await supabase
+        .from('asset_items')
+        .update({
+          asset_id: editFormData.asset_id,
+          name: editFormData.name || editFormData.asset_id,
+          location: editFormData.location,
+          status: editFormData.status,
+          install_date: editFormData.install_date,
+          notes: editFormData.notes,
+        })
+        .eq('id', assetId)
+
+      if (error) throw error
+
+      setEditingAssetId(null)
+      await fetchAssetItems()
+    } catch (error) {
+      console.error('Error updating asset:', error)
+      alert('Error updating asset: ' + error.message)
+    }
+  }
+
+  const handleDeleteAsset = async (assetId) => {
+    if (!window.confirm('Are you sure you want to delete this asset?')) return
+
+    try {
+      const { error } = await supabase
+        .from('asset_items')
+        .delete()
+        .eq('id', assetId)
+
+      if (error) throw error
+
+      if (expandedAsset === assetId) {
+        setExpandedAsset(null)
+      }
+      if (editingAssetId === assetId) {
+        setEditingAssetId(null)
+      }
+
+      await fetchAssetItems()
+    } catch (error) {
+      console.error('Error deleting asset:', error)
+      alert('Error deleting asset: ' + error.message)
     }
   }
 
@@ -142,6 +224,16 @@ export default function AssetList() {
               />
             </div>
             <div className="form-group">
+              <label htmlFor="name">Asset Description *</label>
+              <input
+                id="name"
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+              />
+            </div>
+            <div className="form-group">
               <label htmlFor="location">Location</label>
               <input
                 id="location"
@@ -204,13 +296,114 @@ export default function AssetList() {
                     {asset.location} | Installed: {asset.install_date ? new Date(asset.install_date).toLocaleDateString() : 'N/A'}
                   </p>
                 </div>
-                <span className={`status-badge status-${asset.status === 'active' ? 'compliant' : 'decommissioned'}`}>
-                  {asset.status.toUpperCase()}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className={`status-badge status-${asset.status === 'active' ? 'compliant' : 'decommissioned'}`}>
+                    {asset.status.toUpperCase()}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      startEditAsset(asset)
+                      setExpandedAsset(asset.id)
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteAsset(asset.id)
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
               
               {expandedAsset === asset.id && (
                 <div style={{ marginTop: '15px', borderTop: '1px solid #e0e0e0', paddingTop: '15px' }}>
+                  {editingAssetId === asset.id && (
+                    <div style={{ marginBottom: '15px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                      <h4 style={{ marginBottom: '10px' }}>Edit Asset</h4>
+                      <form onSubmit={(e) => handleEditSubmit(e, asset.id)}>
+                        <div className="form-group">
+                          <label htmlFor={`edit_asset_id_${asset.id}`}>Asset ID *</label>
+                          <input
+                            id={`edit_asset_id_${asset.id}`}
+                            type="text"
+                            value={editFormData.asset_id}
+                            onChange={(e) => setEditFormData({ ...editFormData, asset_id: e.target.value })}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor={`edit_name_${asset.id}`}>Asset Description *</label>
+                          <input
+                            id={`edit_name_${asset.id}`}
+                            type="text"
+                            value={editFormData.name}
+                            onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor={`edit_location_${asset.id}`}>Location</label>
+                          <input
+                            id={`edit_location_${asset.id}`}
+                            type="text"
+                            value={editFormData.location}
+                            onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor={`edit_status_${asset.id}`}>Status</label>
+                          <select
+                            id={`edit_status_${asset.id}`}
+                            value={editFormData.status}
+                            onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
+                          >
+                            <option value="active">Active</option>
+                            <option value="decommissioned">Decommissioned</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor={`edit_install_date_${asset.id}`}>Install Date</label>
+                          <input
+                            id={`edit_install_date_${asset.id}`}
+                            type="date"
+                            value={editFormData.install_date || ''}
+                            onChange={(e) => setEditFormData({ ...editFormData, install_date: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor={`edit_notes_${asset.id}`}>Notes</label>
+                          <textarea
+                            id={`edit_notes_${asset.id}`}
+                            rows="3"
+                            value={editFormData.notes || ''}
+                            onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                          />
+                        </div>
+                        <button type="submit" className="btn btn-primary" style={{ marginRight: '8px' }}>
+                          Save Changes
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => setEditingAssetId(null)}
+                        >
+                          Cancel
+                        </button>
+                      </form>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                     <button 
                       className="btn btn-primary" 
@@ -286,7 +479,7 @@ export default function AssetList() {
                     </div>
                   )}
 
-                  <AssetInspectionTimeline plantId={asset.id} />
+                  <AssetInspectionTimeline assetId={asset.id} />
                 </div>
               )}
             </div>

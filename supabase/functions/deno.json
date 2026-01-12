@@ -1,5 +1,13 @@
 {
   "imports": {
     "supabase": "https://esm.sh/@supabase/supabase-js@2"
+  },
+  "functions": {
+    "send-checklist-email": {
+      "verify_jwt": false
+    },
+    "send-inspection-reminders": {
+      "verify_jwt": false
+    }
   }
 }

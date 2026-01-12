@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 
-export default function InspectionModal({ inspection, onClose, onUpdate }) {
+export default function InspectionModal({
+  inspection,
+  onClose,
+  onUpdate,
+  onOpenChecklist,
+  hasChecklist,
+  onViewChecklist,
+  checklistStatus,
+}) {
   const [formData, setFormData] = useState({
     due_date: '',
     completed_date: '',
@@ -17,10 +25,15 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
     defect_portal_na: false
   })
   const [loading, setLoading] = useState(false)
+  const [logs, setLogs] = useState([])
+  const [logsLoading, setLogsLoading] = useState(false)
+  const [logsError, setLogsError] = useState(null)
+  const [logUsers, setLogUsers] = useState({})
+  const [initialData, setInitialData] = useState(null)
 
   useEffect(() => {
     if (inspection) {
-      setFormData({
+      const initial = {
         due_date: inspection.due_date || '',
         completed_date: inspection.completed_date || '',
         date_completed: inspection.date_completed || '',
@@ -33,7 +46,9 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
         next_inspection_na: inspection.next_inspection_na || false,
         defect_portal_actions: inspection.defect_portal_actions || false,
         defect_portal_na: inspection.defect_portal_na || false
-      })
+      }
+      setFormData(initial)
+      setInitialData(initial)
     }
   }, [inspection])
 
@@ -44,6 +59,8 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
     null
 
   const canMarkComplete = () => {
+    if (inspection?.status === 'completed') return false
+
     // Check 1: Date Next Inspection Required - must have date OR N/A checked
     const nextInspectionValid = formData.next_inspection_na || formData.next_inspection_date
     
@@ -53,8 +70,97 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
     // Check 3: Defect Portal - Actions created OR N/A must be checked
     const defectPortalValid = formData.defect_portal_actions || formData.defect_portal_na
     
-    return nextInspectionValid && certsValid && defectPortalValid
+    // Check 4: Date Completed must be entered
+    const dateCompletedValid = !!formData.date_completed
+
+    return nextInspectionValid && certsValid && defectPortalValid && dateCompletedValid
   }
+
+
+  const logInspectionAction = async (action, details) => {
+    if (!inspection?.id) return
+
+    try {
+      const { data: authData } = await supabase.auth.getUser()
+      const currentUserId = authData?.user?.id || null
+
+      const payload = {
+        inspection_id: inspection.id,
+        action,
+        details,
+      }
+
+      if (currentUserId) {
+        payload.created_by = currentUserId
+      }
+
+      const { error } = await supabase
+        .from('inspection_logs')
+        .insert(payload)
+
+      if (error) {
+        console.error('Error logging inspection action:', error)
+      }
+    } catch (error) {
+      console.error('Error logging inspection action:', error)
+    }
+  }
+
+  useEffect(() => {
+    const loadLogs = async () => {
+      if (!inspection?.id) return
+
+      setLogsLoading(true)
+      setLogsError(null)
+
+      const { data, error } = await supabase
+        .from('inspection_logs')
+        .select('*')
+        .eq('inspection_id', inspection.id)
+        .order('created_at', { ascending: true })
+
+      if (error) {
+        console.error('Error loading inspection logs:', error)
+        setLogsError('Error loading logs')
+        setLogs([])
+      } else {
+        setLogs(data || [])
+      }
+
+      setLogsLoading(false)
+    }
+
+    loadLogs()
+  }, [inspection?.id])
+
+  useEffect(() => {
+    const loadLogUsers = async () => {
+      const userIds = Array.from(new Set((logs || []).map((l) => l.created_by).filter(Boolean)))
+      if (userIds.length === 0) {
+        setLogUsers({})
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('id, email')
+        .in('id', userIds)
+
+      if (error) {
+        console.error('Error loading log users:', error)
+        return
+      }
+
+      const map = {}
+      ;(data || []).forEach((u) => {
+        map[u.id] = u.email
+      })
+      setLogUsers(map)
+    }
+
+    loadLogUsers()
+  }, [logs])
+
 
   const handleMarkComplete = async () => {
     if (!canMarkComplete()) {
@@ -77,21 +183,38 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
         messages.push('- Actions created in Defect Portal OR N/A must be selected')
       }
       
+      if (!formData.date_completed) {
+        messages.push('- Date Completed must be entered')
+      }
+      
       alert('Cannot mark as complete. Please complete:\n\n' + messages.join('\n'))
       return
     }
 
     setLoading(true)
     try {
+      // Persist all current form values along with the completed status
+      const cleanedData = {
+        ...formData,
+        due_date: formData.due_date || null,
+        completed_date: formData.completed_date || null,
+        date_completed: formData.date_completed || null,
+        next_inspection_date: formData.next_inspection_date || null,
+        certs_link: formData.certs_link || null,
+        assigned_to: formData.assigned_to || null,
+        notes: formData.notes || null,
+        status: 'completed',
+      }
+
       const { error } = await supabase
         .from('inspections')
-        .update({
-          status: 'completed',
-          completed_date: new Date().toISOString().split('T')[0]
-        })
+        .update(cleanedData)
         .eq('id', inspection.id)
 
       if (error) throw error
+
+      // Log completion
+      logInspectionAction('completed', 'Inspection marked as complete in modal.')
 
       alert('Inspection marked as complete!')
       onUpdate()
@@ -107,6 +230,9 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
   const handleSave = async () => {
     setLoading(true)
     try {
+      // If for some reason we don't have a baseline, fall back to generic logging
+      const baseline = initialData
+
       // Clean up empty date strings - convert to null
       const cleanedData = {
         ...formData,
@@ -119,12 +245,79 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
         notes: formData.notes || null
       }
 
+      // Work out what actually changed, and build a full snapshot for the log
+      const formatValue = (value) => {
+        if (value === undefined || value === null || value === '') return 'blank'
+        if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+        return String(value)
+      }
+
+      const fieldMeta = [
+        { key: 'assigned_to', label: 'Assigned to' },
+        { key: 'due_date', label: 'Due date' },
+        { key: 'date_completed', label: 'Date completed' },
+        { key: 'next_inspection_date', label: 'Next inspection date' },
+        { key: 'next_inspection_na', label: 'Next inspection N/A' },
+        { key: 'certs_received', label: 'Certs received' },
+        { key: 'certs_link', label: 'Certs link' },
+        { key: 'defect_portal_actions', label: 'Defect portal actions' },
+        { key: 'defect_portal_na', label: 'Defect portal N/A' },
+        { key: 'notes', label: 'Notes' },
+      ]
+
+      const changedDescriptions = []
+
+      if (baseline) {
+        fieldMeta.forEach(({ key, label }) => {
+          const before = baseline[key]
+          const after = formData[key]
+          if (before !== after) {
+            changedDescriptions.push(`${label}: ${formatValue(before)} -> ${formatValue(after)}`)
+          }
+        })
+      }
+
       const { error } = await supabase
         .from('inspections')
         .update(cleanedData)
         .eq('id', inspection.id)
 
       if (error) throw error
+
+      // Log only the fields that actually changed (if any)
+      if (baseline && changedDescriptions.length > 0) {
+        const details = `Updated fields: ${changedDescriptions.join('; ')}`
+        logInspectionAction('updated', details)
+      } else {
+        // Fallback if we somehow don't have a baseline or no clear changes
+        logInspectionAction('updated', 'Inspection details updated in modal.')
+      }
+
+      // If the due date was changed, trigger the reminder function
+      // immediately for this single inspection. The function itself
+      // will decide whether any of the 30/14/7/1 day thresholds are
+      // hit today and create/send the appropriate reminders.
+      const newDueDateStr = cleanedData.due_date
+      if (newDueDateStr) {
+        try {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+          if (supabaseUrl && supabaseAnonKey) {
+            await fetch(`${supabaseUrl}/functions/v1/send-inspection-reminders`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                apikey: supabaseAnonKey,
+              },
+              body: JSON.stringify({ inspection_id: inspection.id }),
+            })
+          }
+        } catch (invokeError) {
+          console.error('Error invoking send-inspection-reminders for single inspection:', invokeError)
+          // Non-fatal: the inspection update has already succeeded.
+        }
+      }
 
       alert('Inspection updated successfully!')
       onUpdate()
@@ -140,6 +333,8 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
 
   if (!inspection) return null
 
+  const isCompleted = inspection.status === 'completed'
+
   return (
     <div 
       style={{
@@ -154,14 +349,13 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
         alignItems: 'center',
         zIndex: 1000
       }}
-      onClick={onClose}
     >
       <div 
         style={{
           backgroundColor: 'white',
           borderRadius: '8px',
           padding: '30px',
-          maxWidth: '600px',
+          maxWidth: '800px',
           width: '90%',
           maxHeight: '90vh',
           overflowY: 'auto',
@@ -185,10 +379,19 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
           ×
         </button>
 
-        <h2 style={{ marginBottom: '20px' }}>
-          {inspection.inspection_types?.name || 'Inspection Details'}
-        </h2>
-
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px',
+          }}
+        >
+          <h2 style={{ margin: 0 }}>
+            {inspection.inspection_types?.name || 'Inspection Details'}
+          </h2>
+        </div>
+        {/* Details section */}
         <div className="form-group">
           <label>Inspection Type</label>
           <input
@@ -206,6 +409,7 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
             type="text"
             value={formData.assigned_to}
             onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
+            disabled={isCompleted}
           />
         </div>
 
@@ -216,6 +420,7 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
             type="date"
             value={formData.due_date}
             onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+            disabled={isCompleted}
           />
         </div>
 
@@ -227,6 +432,7 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
             value={formData.date_completed}
             onChange={(e) => setFormData({ ...formData, date_completed: e.target.value })}
             max={new Date().toISOString().split('T')[0]}
+            disabled={isCompleted}
           />
         </div>
 
@@ -238,6 +444,7 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
                 type="checkbox"
                 checked={formData.next_inspection_na}
                 onChange={(e) => setFormData({ ...formData, next_inspection_na: e.target.checked, next_inspection_date: '' })}
+                disabled={isCompleted}
               />
               N/A
             </label>
@@ -248,6 +455,7 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
               type="date"
               value={formData.next_inspection_date}
               onChange={(e) => setFormData({ ...formData, next_inspection_date: e.target.value })}
+              disabled={isCompleted}
             />
           )}
         </div>
@@ -260,6 +468,7 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
                 id="certs_received_checkbox"
                 checked={formData.certs_received}
                 onChange={(e) => setFormData({ ...formData, certs_received: e.target.checked })}
+                disabled={isCompleted}
               />
               <label htmlFor="certs_received_checkbox" style={{ margin: 0, cursor: 'pointer' }}>
                 Certs Received *
@@ -296,6 +505,7 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
                 placeholder="https://drive.google.com/..."
                 required={formData.certs_received}
                 style={{ flex: 1 }}
+                disabled={isCompleted}
               />
               {formData.certs_link && (
                 <button
@@ -320,6 +530,7 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
               id="defect_portal_actions_checkbox"
               checked={formData.defect_portal_actions}
               onChange={(e) => setFormData({ ...formData, defect_portal_actions: e.target.checked, defect_portal_na: false })}
+              disabled={isCompleted}
             />
             <label htmlFor="defect_portal_actions_checkbox" style={{ margin: 0, cursor: 'pointer' }}>
               Actions created in Defect Portal *
@@ -334,6 +545,7 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
               id="defect_portal_na_checkbox"
               checked={formData.defect_portal_na}
               onChange={(e) => setFormData({ ...formData, defect_portal_na: e.target.checked, defect_portal_actions: false })}
+              disabled={isCompleted}
             />
             <label htmlFor="defect_portal_na_checkbox" style={{ margin: 0, cursor: 'pointer' }}>
               Defect Portal N/A *
@@ -348,12 +560,13 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
             rows="4"
             value={formData.notes}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+            disabled={isCompleted}
           />
         </div>
 
         <div className="form-group">
           <label>Current Status</label>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
             <span 
               className={`status-badge ${
                 formData.status === 'completed' ? 'status-compliant' : 
@@ -363,18 +576,59 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
             >
               {formData.status.toUpperCase()}
             </span>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                {hasChecklist && onViewChecklist && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={onViewChecklist}
+                  >
+                    View checklist
+                  </button>
+                )}
+                {onOpenChecklist && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => onOpenChecklist(inspection)}
+                  >
+                    Create inspection checklist
+                  </button>
+                )}
+              </div>
+              {hasChecklist && checklistStatus && (
+                <div style={{ fontSize: '0.9rem', color: '#555' }}>
+                  Checklist status:{' '}
+                  <strong>
+                    {checklistStatus === 'completed'
+                      ? 'Completed'
+                      : checklistStatus.charAt(0).toUpperCase() + checklistStatus.slice(1)}
+                  </strong>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-          <button
-            className="btn btn-primary"
-            onClick={handleSave}
-            disabled={loading}
-            style={{ flex: 1 }}
-          >
-            {loading ? 'Saving...' : 'Save Changes'}
-          </button>
+          {!isCompleted && (
+            <button
+              className="btn btn-primary"
+              onClick={handleSave}
+              disabled={loading}
+              style={{ flex: 1 }}
+            >
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          )}
           <button
             className="btn"
             onClick={onClose}
@@ -385,29 +639,101 @@ export default function InspectionModal({ inspection, onClose, onUpdate }) {
           </button>
         </div>
 
-        {/* Mark Complete Button at Bottom */}
+        {/* Mark Complete / Locked indicator at Bottom */}
         <div style={{ marginTop: '20px' }}>
-          <button
-            className="btn btn-primary"
-            onClick={handleMarkComplete}
-            disabled={loading || !canMarkComplete()}
-            style={{
-              width: '100%',
-              backgroundColor: canMarkComplete() ? '#4CAF50' : '#ccc',
-              cursor: canMarkComplete() ? 'pointer' : 'not-allowed'
-            }}
-          >
-            {loading ? 'Processing...' : 'Mark as Complete'}
-          </button>
-          {!canMarkComplete() && (
-            <div style={{ fontSize: '0.85rem', color: '#f44336', marginTop: '8px', fontStyle: 'italic' }}>
-              <strong>Required to complete:</strong>
-              <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
-                <li>Date Next Inspection (enter date or mark N/A)</li>
-                <li>Certs Received (tick and add Google Drive link)</li>
-                <li>Defect Portal (select "Actions created" or "N/A")</li>
-              </ul>
-            </div>
+          {isCompleted ? (
+            <button
+              type="button"
+              disabled
+              style={{
+                width: '100%',
+                padding: '10px 16px',
+                borderRadius: '4px',
+                border: 'none',
+                backgroundColor: '#DAA520', // gold
+                color: '#fff',
+                fontWeight: 'bold',
+                cursor: 'default',
+              }}
+            >
+              🔒 Inspection locked (completed)
+            </button>
+          ) : (
+            <>
+              <button
+                className="btn btn-primary"
+                onClick={handleMarkComplete}
+                disabled={loading || !canMarkComplete()}
+                style={{
+                  width: '100%',
+                  backgroundColor: canMarkComplete() ? '#4CAF50' : '#ccc',
+                  cursor: canMarkComplete() ? 'pointer' : 'not-allowed'
+                }}
+              >
+                {loading ? 'Processing...' : 'Mark as Complete'}
+              </button>
+              {!canMarkComplete() && (
+                <div style={{ fontSize: '0.85rem', color: '#f44336', marginTop: '8px', fontStyle: 'italic' }}>
+                  <strong>Required to complete:</strong>
+                  <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
+                    <li>Date Completed</li>
+                    <li>Date Next Inspection (enter date or mark N/A)</li>
+                    <li>Certs Received (tick and add Google Drive link)</li>
+                    <li>Defect Portal (select "Actions created" or "N/A")</li>
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Logs section - appears below completion requirements, one line per log */}
+        <div style={{ marginTop: '24px' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '8px' }}>Inspection Logs</h3>
+          <p style={{ marginTop: 0, marginBottom: '12px', fontSize: '0.9rem', color: '#555' }}>
+            Recent activity recorded for this inspection.
+          </p>
+
+          {logsLoading && <p>Loading logs...</p>}
+
+          {!logsLoading && logsError && (
+            <p style={{ color: '#d32f2f' }}>Error loading logs. Please try again.</p>
+          )}
+
+          {!logsLoading && !logsError && logs.length === 0 && (
+            <p style={{ fontStyle: 'italic' }}>No logs found for this inspection yet.</p>
+          )}
+
+          {!logsLoading && !logsError && logs.length > 0 && (
+            <ul style={{ paddingLeft: '18px', margin: 0 }}>
+              {logs.map((log) => {
+                const when = log.created_at
+                  ? new Date(log.created_at).toLocaleString('en-GB', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    })
+                  : ''
+                const actorEmail = log.created_by ? logUsers[log.created_by] : null
+                const baseText = log.details || log.action || ''
+                const text = actorEmail ? `${actorEmail}: ${baseText}` : baseText
+                return (
+                  <li
+                    key={log.id}
+                    style={{ fontSize: '0.9rem', marginBottom: '4px' }}
+                  >
+                    {when && (
+                      <span style={{ fontWeight: 'bold' }}>{when}</span>
+                    )}
+                    {when && text ? ' — ' : ''}
+                    {text}
+                  </li>
+                )
+              })}
+            </ul>
           )}
         </div>
       </div>

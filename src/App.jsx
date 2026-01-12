@@ -14,7 +14,9 @@ import Events from './components/Events'
 import InspectionTypeDriveLinks from './components/InspectionTypeDriveLinks'
 import AdminTools from './components/AdminTools'
 import ChangePassword from './components/ChangePassword'
+import InspectionItemsAdmin from './components/InspectionItemsAdmin'
 import Header from './components/Header'
+import MyChecklists from './components/MyChecklists'
 
 function App() {
   const [session, setSession] = useState(null)
@@ -131,10 +133,12 @@ function App() {
             <Route path="/overview" element={<AssetOverview />} />
             <Route path="/plant" element={<AssetList />} />
             <Route path="/inspections" element={<InspectionsList />} />
+            <Route path="/my-checklists" element={<MyChecklists />} />
             <Route path="/events" element={<Events />} />
             <Route path="/users" element={<UserManagement />} />
             <Route path="/inspection-folders" element={<InspectionTypeDriveLinks />} />
             <Route path="/admin-tools" element={<AdminTools />} />
+            <Route path="/inspection-items" element={<InspectionItemsAdmin />} />
             <Route path="/change-password" element={<ChangePassword />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import InspectionModal from './InspectionModal'
+import InspectionChecklistModal from './InspectionChecklistModal'
+import InspectionChecklistViewModal from './InspectionChecklistViewModal'
 
 export default function InspectionsList() {
   const [inspections, setInspections] = useState([])
@@ -11,6 +13,9 @@ export default function InspectionsList() {
   const [showOtherType, setShowOtherType] = useState(false)
   const [newTypeName, setNewTypeName] = useState('')
   const [selectedInspection, setSelectedInspection] = useState(null)
+  const [checklistInspection, setChecklistInspection] = useState(null)
+  const [inspectionChecklists, setInspectionChecklists] = useState({})
+  const [viewChecklist, setViewChecklist] = useState(null) // { inspection, checklistId }
   const [formData, setFormData] = useState({
     asset_id: '',
     inspection_type_id: '',
@@ -31,10 +36,20 @@ export default function InspectionsList() {
         .from('inspections')
         .select(`
           id,
+          asset_id,
+          inspection_type_id,
           due_date,
+          date_completed,
           completed_date,
           status,
           notes,
+          assigned_to,
+          next_inspection_date,
+          next_inspection_na,
+          certs_received,
+          certs_link,
+          defect_portal_actions,
+          defect_portal_na,
           asset_items (asset_id, name),
           inspection_types (name, google_drive_url)
         `)
@@ -61,6 +76,32 @@ export default function InspectionsList() {
       setInspections(inspectionsData || [])
       setPlantItems(assetData || [])
       setInspectionTypes(typesData || [])
+
+      // Fetch any checklists that already exist for these inspections
+      const inspectionIds = (inspectionsData || []).map((insp) => insp.id)
+      const checklistMap = {}
+
+      if (inspectionIds.length > 0) {
+        const { data: checklistData, error: checklistError } = await supabase
+          .from('inspection_checklists')
+          .select('id, inspection_id, status, created_at')
+          .in('inspection_id', inspectionIds)
+          .order('created_at', { ascending: false })
+
+        if (checklistError) throw checklistError
+
+        ;(checklistData || []).forEach((row) => {
+          // Keep only the most recent checklist per inspection
+          if (!checklistMap[row.inspection_id]) {
+            checklistMap[row.inspection_id] = {
+              id: row.id,
+              status: row.status,
+            }
+          }
+        })
+      }
+
+      setInspectionChecklists(checklistMap)
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -85,16 +126,50 @@ export default function InspectionsList() {
         inspectionTypeId = newType.id
       }
 
-      const { error } = await supabase.from('inspections').insert([{
-        asset_id: formData.asset_id,
-        inspection_type_id: inspectionTypeId,
-        due_date: formData.due_date || null,
-        status: formData.status,
-        notes: formData.notes || null,
-        assigned_to: formData.assigned_to || null,
-      }])
+      const { data: newInspection, error } = await supabase
+        .from('inspections')
+        .insert([
+          {
+            asset_id: formData.asset_id,
+            inspection_type_id: inspectionTypeId,
+            due_date: formData.due_date || null,
+            status: formData.status,
+            notes: formData.notes || null,
+            assigned_to: formData.assigned_to || null,
+          },
+        ])
+        .select()
+        .single()
 
       if (error) throw error
+
+      // Log creation of the inspection
+      try {
+        const { data: authData } = await supabase.auth.getUser()
+        const currentUserId = authData?.user?.id || null
+        const currentUserEmail = authData?.user?.email || null
+
+        const assignedText = formData.assigned_to
+          ? ` Assigned to ${formData.assigned_to}.`
+          : ''
+
+        const payload = {
+          inspection_id: newInspection.id,
+          action: 'created',
+          details: `${currentUserEmail || 'Unknown user'}: Inspection scheduled from Inspections list.${assignedText}`,
+        }
+        if (currentUserId) {
+          payload.created_by = currentUserId
+        }
+        const { error: logError } = await supabase
+          .from('inspection_logs')
+          .insert(payload)
+        if (logError) {
+          console.error('Error logging inspection creation:', logError)
+        }
+      } catch (logError) {
+        console.error('Error logging inspection creation:', logError)
+      }
 
       setShowForm(false)
       setShowOtherType(false)
@@ -163,6 +238,30 @@ export default function InspectionsList() {
         .eq('id', inspectionId)
 
       if (error) throw error
+
+      // Log completion from list view
+      try {
+        const { data: authData } = await supabase.auth.getUser()
+        const currentUserId = authData?.user?.id || null
+        const currentUserEmail = authData?.user?.email || null
+
+        const payload = {
+          inspection_id: inspectionId,
+          action: 'completed',
+          details: `${currentUserEmail || 'Unknown user'}: Inspection marked as complete from Inspections list.`,
+        }
+        if (currentUserId) {
+          payload.created_by = currentUserId
+        }
+        const { error: logError } = await supabase
+          .from('inspection_logs')
+          .insert(payload)
+        if (logError) {
+          console.error('Error logging inspection completion:', logError)
+        }
+      } catch (logError) {
+        console.error('Error logging inspection completion:', logError)
+      }
       fetchData()
     } catch (error) {
       console.error('Error completing inspection:', error)
@@ -350,16 +449,40 @@ export default function InspectionsList() {
                     </div>
                   </td>
                   <td style={{ padding: '10px' }}>
-                    {inspection.status === 'pending' && (
+                    {inspection.status === 'pending' ? (
                       <button
                         className="btn btn-primary"
                         style={{ padding: '5px 10px', fontSize: '0.85rem' }}
                         onClick={(e) => {
                           e.stopPropagation()
-                          handleCompleteInspection(inspection.id)
+                          // Open the inspection modal so the user can
+                          // complete the required fields before marking complete
+                          setSelectedInspection(inspection)
                         }}
                       >
                         Mark Complete
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          padding: '5px 10px',
+                          fontSize: '0.85rem',
+                          borderRadius: '999px',
+                          border: 'none',
+                          backgroundColor: '#DAA520', // gold
+                          color: '#fff',
+                          fontWeight: 'bold',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          cursor: 'default',
+                        }}
+                      >
+                        <span style={{ fontSize: '1rem' }}>🔒</span>
+                        <span>Locked</span>
                       </button>
                     )}
                   </td>
@@ -375,6 +498,45 @@ export default function InspectionsList() {
           inspection={selectedInspection}
           onClose={() => setSelectedInspection(null)}
           onUpdate={fetchData}
+          onOpenChecklist={(insp) => setChecklistInspection(insp)}
+          hasChecklist={!!inspectionChecklists[selectedInspection.id]}
+          checklistStatus={inspectionChecklists[selectedInspection.id]?.status}
+          onViewChecklist={() => {
+            const checklistId = inspectionChecklists[selectedInspection.id]?.id
+            if (!checklistId) return
+            setViewChecklist({ inspection: selectedInspection, checklistId })
+          }}
+        />
+      )}
+
+      {checklistInspection && (
+        <InspectionChecklistModal
+          inspection={checklistInspection}
+          onClose={() => setChecklistInspection(null)}
+          onCreated={() => {
+            setChecklistInspection(null)
+            // Refresh inspections and checklist mapping so the
+            // View checklist button appears immediately
+            fetchData()
+          }}
+        />
+      )}
+
+      {viewChecklist && (
+        <InspectionChecklistViewModal
+          inspection={viewChecklist.inspection}
+          checklistId={viewChecklist.checklistId}
+          onClose={() => setViewChecklist(null)}
+          onDeleted={() => {
+            setInspectionChecklists((prev) => {
+              const next = { ...prev }
+              if (viewChecklist?.inspection?.id) {
+                delete next[viewChecklist.inspection.id]
+              }
+              return next
+            })
+            setViewChecklist(null)
+          }}
         />
       )}
     </div>

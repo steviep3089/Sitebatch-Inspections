@@ -1,0 +1,2 @@
+[functions.send-inspection-reminders]
+verify_jwt = false

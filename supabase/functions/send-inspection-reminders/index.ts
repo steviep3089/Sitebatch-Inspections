@@ -100,8 +100,17 @@ serve(async (req) => {
       .toISOString()
       .split('T')[0]
 
-    // Fetch pending inspections
-    const { data: inspections, error: inspectionsError } = await supabaseClient
+    // Optional: allow a single inspection to be targeted explicitly
+    // when this function is invoked with a JSON body, e.g.
+    // { "inspection_id": "..." }. This lets the UI trigger
+    // immediate reminders when a due date is changed to exactly
+    // 30/14/7/1 days from today, while preserving the existing
+    // daily-cron behaviour when no body is provided.
+    const body = await req.json().catch(() => null as any)
+    const singleInspectionId = body?.inspection_id || body?.inspectionId || null
+
+    // Build base query for pending inspections
+    let inspectionsQuery = supabaseClient
       .from('inspections')
       .select(`
         id,
@@ -112,8 +121,17 @@ serve(async (req) => {
         inspection_types (name)
       `)
       .eq('status', 'pending')
-      .gte('due_date', todayStr)
-      .lte('due_date', thirtyDaysFromNow)
+
+    if (singleInspectionId) {
+      inspectionsQuery = inspectionsQuery.eq('id', singleInspectionId)
+    } else {
+      inspectionsQuery = inspectionsQuery
+        .gte('due_date', todayStr)
+        .lte('due_date', thirtyDaysFromNow)
+    }
+
+    // Fetch pending inspections
+    const { data: inspections, error: inspectionsError } = await inspectionsQuery
 
     if (inspectionsError) throw inspectionsError
 
@@ -125,6 +143,11 @@ serve(async (req) => {
 
     // For each inspection, check if we need to create reminders
     for (const inspection of inspections || []) {
+      if (!inspection.due_date) {
+        // Skip inspections without a due date
+        continue
+      }
+
       const dueDate = new Date(inspection.due_date)
       const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 
@@ -180,7 +203,7 @@ serve(async (req) => {
               <li><strong>Asset Name:</strong> ${inspection.asset_items?.name}</li>
               <li><strong>Location:</strong> ${inspection.asset_items?.location || 'N/A'}</li>
               <li><strong>Inspection Type:</strong> ${inspection.inspection_types?.name}</li>
-              <li><strong>Due Date:</strong> ${new Date(inspection.due_date).toLocaleDateString()}</li>
+              <li><strong>Due Date:</strong> ${new Date(inspection.due_date).toLocaleDateString('en-GB')}</li>
               <li><strong>Days Until Due:</strong> ${daysUntilDue}</li>
               <li><strong>Company Assigned To:</strong> ${inspection.assigned_to || 'N/A'}</li>
               <li><strong>Notes:</strong> ${inspection.notes || 'N/A'}</li>

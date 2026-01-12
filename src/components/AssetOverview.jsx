@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import AssetTimeline from './AssetTimeline'
 import InspectionModal from './InspectionModal'
+import InspectionChecklistModal from './InspectionChecklistModal'
+import InspectionChecklistViewModal from './InspectionChecklistViewModal'
 
 export default function AssetOverview() {
   const [assets, setAssets] = useState([])
@@ -11,6 +13,9 @@ export default function AssetOverview() {
   const [filterMode, setFilterMode] = useState('full') // full, due, complete
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState(null)
+  const [checklistInspection, setChecklistInspection] = useState(null)
+  const [inspectionChecklists, setInspectionChecklists] = useState({})
+  const [viewChecklist, setViewChecklist] = useState(null) // { inspection, checklistId }
   const [eventFormData, setEventFormData] = useState({
     start_date: '',
     end_date: '',
@@ -93,6 +98,32 @@ export default function AssetOverview() {
       )
 
       setAssets(assetsWithInspections)
+
+      // Build a map of the latest checklist per inspection across all assets
+      const allInspections = assetsWithInspections.flatMap((asset) => asset.inspections || [])
+      const inspectionIds = allInspections.map((insp) => insp.id)
+      const checklistMap = {}
+
+      if (inspectionIds.length > 0) {
+        const { data: checklistData, error: checklistError } = await supabase
+          .from('inspection_checklists')
+          .select('id, inspection_id, status, created_at')
+          .in('inspection_id', inspectionIds)
+          .order('created_at', { ascending: false })
+
+        if (checklistError) throw checklistError
+
+        ;(checklistData || []).forEach((row) => {
+          if (!checklistMap[row.inspection_id]) {
+            checklistMap[row.inspection_id] = {
+              id: row.id,
+              status: row.status,
+            }
+          }
+        })
+      }
+
+      setInspectionChecklists(checklistMap)
     } catch (error) {
       console.error('Error fetching assets:', error)
     } finally {
@@ -459,6 +490,43 @@ export default function AssetOverview() {
           inspection={selectedInspection}
           onClose={() => setSelectedInspection(null)}
           onUpdate={fetchAssetsWithInspections}
+          onOpenChecklist={(insp) => setChecklistInspection(insp)}
+          hasChecklist={!!inspectionChecklists[selectedInspection.id]}
+          checklistStatus={inspectionChecklists[selectedInspection.id]?.status}
+          onViewChecklist={() => {
+            const checklistId = inspectionChecklists[selectedInspection.id]?.id
+            if (!checklistId) return
+            setViewChecklist({ inspection: selectedInspection, checklistId })
+          }}
+        />
+      )}
+
+      {checklistInspection && (
+        <InspectionChecklistModal
+          inspection={checklistInspection}
+          onClose={() => setChecklistInspection(null)}
+          onCreated={() => {
+            setChecklistInspection(null)
+            fetchAssetsWithInspections()
+          }}
+        />
+      )}
+
+      {viewChecklist && (
+        <InspectionChecklistViewModal
+          inspection={viewChecklist.inspection}
+          checklistId={viewChecklist.checklistId}
+          onClose={() => setViewChecklist(null)}
+          onDeleted={() => {
+            setInspectionChecklists((prev) => {
+              const next = { ...prev }
+              if (viewChecklist?.inspection?.id) {
+                delete next[viewChecklist.inspection.id]
+              }
+              return next
+            })
+            setViewChecklist(null)
+          }}
         />
       )}
     </div>
