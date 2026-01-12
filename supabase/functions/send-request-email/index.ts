@@ -124,6 +124,7 @@ serve(async (req) => {
     }
 
     const portalUrl = Deno.env.get('PORTAL_BASE_URL') ?? 'http://localhost:3000'
+    const requestInboxUrl = `${portalUrl.replace(/\/$/, '')}/user-request-inbox`
 
     const subject = `New request from ${requester.email}`
 
@@ -139,9 +140,16 @@ serve(async (req) => {
       <p><strong>Description:</strong></p>
       <p>${request.description.replace(/\n/g, '<br />')}</p>
       <p>
-        <a href="${portalUrl}" target="_blank" rel="noopener noreferrer">
+        <a
+          href="${requestInboxUrl}"
+          target="_blank"
+          rel="noopener noreferrer"
+          style="color:#1155cc;text-decoration:underline;"
+        >
           Open Sitebatch Inspections Portal
         </a>
+        <br />
+        ${requestInboxUrl}
       </p>
     `
 

@@ -152,9 +152,16 @@ serve(async (req) => {
       </ul>
       <p>Please log in to the Sitebatch Inspections portal to review and complete this checklist.</p>
       <p>
-        <a href="${portalUrl}" target="_blank" rel="noopener noreferrer">
+        <a
+          href="${portalUrl}"
+          target="_blank"
+          rel="noopener noreferrer"
+          style="color:#1155cc;text-decoration:underline;"
+        >
           Open Sitebatch Inspections Portal
         </a>
+        <br />
+        ${portalUrl}
       </p>
     `
 
