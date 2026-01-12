@@ -7,6 +7,7 @@ export default function Header({ session }) {
   const location = useLocation()
   const [userRole, setUserRole] = useState(null)
   const [pendingChecklists, setPendingChecklists] = useState(0)
+  const [pendingRequests, setPendingRequests] = useState(0)
 
   useEffect(() => {
     checkUserRole()
@@ -43,12 +44,73 @@ export default function Header({ session }) {
     setPendingChecklists(count || 0)
   }
 
+  const loadPendingRequests = async () => {
+    if (!session?.user) return
+
+    const { count, error } = await supabase
+      .from('user_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('admin_id', session.user.id)
+      .is('is_resolved', false)
+
+    if (error) {
+      console.error('Error loading pending requests count:', error)
+      return
+    }
+
+    setPendingRequests(count || 0)
+  }
+
+  // Allow other components (like the inbox or MyChecklists)
+  // to push their own view of the current counts into the
+  // header so the bell badge always matches the visible lists.
+  useEffect(() => {
+    const handler = (event) => {
+      const detail = event?.detail || {}
+      if (typeof detail.pendingRequests === 'number') {
+        setPendingRequests(detail.pendingRequests)
+      }
+      if (typeof detail.pendingChecklists === 'number') {
+        setPendingChecklists(detail.pendingChecklists)
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('notifications-sync', handler)
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('notifications-sync', handler)
+      }
+    }
+  }, [])
+
+  // Allow other components to explicitly trigger a refresh of the
+  // user request count (e.g. after marking a request as read).
+  useEffect(() => {
+    const handler = () => {
+      loadPendingRequests()
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('user-requests-updated', handler)
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('user-requests-updated', handler)
+      }
+    }
+  }, [session?.user])
+
   // Refresh bell count whenever the route changes so that
   // completing checklists and then navigating back updates
   // the number without a full page reload.
   useEffect(() => {
     if (!session?.user) return
     loadPendingChecklists()
+    loadPendingRequests()
   }, [location.pathname, session?.user])
 
   // Subscribe to checklist changes so the bell count updates
@@ -59,7 +121,7 @@ export default function Header({ session }) {
 
     const userId = session.user.id
 
-    const channel = supabase
+    const checklistChannel = supabase
       .channel('inspection_checklists_notifications')
       .on(
         'postgres_changes',
@@ -71,12 +133,41 @@ export default function Header({ session }) {
         },
         () => {
           loadPendingChecklists()
+
+          // Notify any open checklist views that assigned
+          // checklists have changed so they can refresh.
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('checklists-updated'))
+          }
+        }
+      )
+      .subscribe()
+
+    const requestsChannel = supabase
+      .channel('user_requests_notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_requests',
+          filter: `admin_id=eq.${userId}`,
+        },
+        () => {
+          loadPendingRequests()
+
+          // Notify any open inbox views that user requests have
+          // changed so they can refresh without a hard reload.
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('user-requests-updated'))
+          }
         }
       )
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      supabase.removeChannel(checklistChannel)
+      supabase.removeChannel(requestsChannel)
     }
   }, [session?.user?.id])
 
@@ -86,6 +177,8 @@ export default function Header({ session }) {
     }
     await supabase.auth.signOut()
   }
+
+  const notificationsTotal = pendingChecklists + pendingRequests
 
   return (
     <div className="header">
@@ -112,6 +205,11 @@ export default function Header({ session }) {
         </div>
       </div>
       <div className="nav-buttons">
+        {userRole !== 'admin' && (
+          <button className="btn btn-warning" onClick={() => navigate('/request-item')}>
+            Request Item
+          </button>
+        )}
         <button className="btn btn-secondary" onClick={() => navigate('/dashboard')}>
           Dashboard
         </button>
@@ -124,9 +222,21 @@ export default function Header({ session }) {
         <button className="btn btn-secondary" onClick={() => navigate('/inspections')}>
           Inspections
         </button>
-        <button className="btn btn-secondary" onClick={() => navigate('/admin-tools')}>
-          Admin Tools
-        </button>
+        {userRole === 'admin' ? (
+          <button className="btn btn-secondary" onClick={() => navigate('/admin-tools')}>
+            Admin Tools
+          </button>
+        ) : (
+          <button
+            className="btn btn-secondary"
+            onClick={() => {
+              alert("You don't have admin rights. Please submit a request.")
+              navigate('/request-item')
+            }}
+          >
+            Admin Tools
+          </button>
+        )}
         <div
           style={{
             display: 'flex',
@@ -138,7 +248,13 @@ export default function Header({ session }) {
           {/* Notifications bell above sign out */}
           <button
             type="button"
-            onClick={() => navigate('/my-checklists')}
+            onClick={() => {
+              if (userRole === 'admin') {
+                navigate('/user-request-inbox')
+              } else {
+                navigate('/my-checklists')
+              }
+            }}
             style={{
               background: 'none',
               border: 'none',
@@ -154,7 +270,7 @@ export default function Header({ session }) {
             >
               🔔
             </span>
-            {pendingChecklists > 0 && (
+            {notificationsTotal > 0 && (
               <span
                 style={{
                   marginLeft: '4px',
@@ -166,7 +282,7 @@ export default function Header({ session }) {
                   fontWeight: 'bold',
                 }}
               >
-                {pendingChecklists}
+                {notificationsTotal}
               </span>
             )}
           </button>

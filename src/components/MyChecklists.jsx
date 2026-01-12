@@ -29,6 +29,31 @@ export default function MyChecklists() {
     init()
   }, [])
 
+  // Keep this view in sync with the bell; when Header's
+  // realtime subscription sees checklist changes it emits
+  // a 'checklists-updated' event that we listen for here.
+  useEffect(() => {
+    const handler = () => {
+      if (currentUserId) {
+        // Small delay to avoid any race with the realtime
+        // event firing before the new data is fully visible.
+        setTimeout(() => {
+          loadChecklists(currentUserId)
+        }, 300)
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('checklists-updated', handler)
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('checklists-updated', handler)
+      }
+    }
+  }, [currentUserId])
+
   const loadChecklists = async (userId) => {
     setLoading(true)
     try {
@@ -50,7 +75,19 @@ export default function MyChecklists() {
 
       if (error) throw error
 
-      setChecklists(data || [])
+      const list = data || []
+      setChecklists(list)
+
+      // Sync the bell badge with what this page sees: we
+      // count only non-completed checklists for notifications.
+      const pending = list.filter((cl) => cl.status !== 'completed').length
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('notifications-sync', {
+            detail: { pendingChecklists: pending },
+          })
+        )
+      }
     } catch (error) {
       console.error('Error loading my checklists:', error)
       alert('Error loading your checklists: ' + (error.message || 'Unknown error'))

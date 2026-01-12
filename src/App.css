@@ -63,6 +63,15 @@
   background-color: #da190b;
 }
 
+.btn-warning {
+  background-color: #ff9800;
+  color: white;
+}
+
+.btn-warning:hover {
+  background-color: #f57c00;
+}
+
 .form-group {
   margin-bottom: 15px;
 }

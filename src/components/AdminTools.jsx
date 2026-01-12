@@ -38,7 +38,7 @@ export default function AdminTools() {
       <div>
         <h2 style={{ marginBottom: '10px' }}>Admin Tools</h2>
         <p style={{ color: '#555' }}>
-          You don't have admin rights. Contact your administrator if you need additional access.
+          You don't have admin rights. Please submit a request.
         </p>
       </div>
     )
@@ -63,6 +63,9 @@ export default function AdminTools() {
         </Link>
         <Link className="btn btn-secondary" to="/inspection-items">
           Inspection Item Templates
+        </Link>
+        <Link className="btn btn-secondary" to="/user-requests">
+          User Requests
         </Link>
       </div>
     </div>

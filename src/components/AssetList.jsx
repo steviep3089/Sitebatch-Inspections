@@ -5,6 +5,8 @@ import AssetInspectionTimeline from './AssetInspectionTimeline'
 export default function AssetList() {
   const [assetItems, setAssetItems] = useState([])
   const [loading, setLoading] = useState(true)
+  const [roleLoading, setRoleLoading] = useState(true)
+  const [userRole, setUserRole] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [showEventForm, setShowEventForm] = useState(null) // Track which asset's event form is open
   const [expandedAsset, setExpandedAsset] = useState(null)
@@ -35,6 +37,29 @@ export default function AssetList() {
 
   useEffect(() => {
     fetchAssetItems()
+  }, [])
+
+  useEffect(() => {
+    const fetchRole = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data } = await supabase
+            .from('user_profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single()
+
+          setUserRole(data?.role || null)
+        }
+      } catch (error) {
+        console.error('Error fetching user role in AssetList:', error)
+      } finally {
+        setRoleLoading(false)
+      }
+    }
+
+    fetchRole()
   }, [])
 
   const fetchAssetItems = async () => {
@@ -204,9 +229,11 @@ export default function AssetList() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2>Asset Items</h2>
-        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-          {showForm ? 'Cancel' : 'Add Asset'}
-        </button>
+        {userRole === 'admin' && (
+          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+            {showForm ? 'Cancel' : 'Add Asset'}
+          </button>
+        )}
       </div>
 
       {showForm && (
@@ -300,29 +327,33 @@ export default function AssetList() {
                   <span className={`status-badge status-${asset.status === 'active' ? 'compliant' : 'decommissioned'}`}>
                     {asset.status.toUpperCase()}
                   </span>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      startEditAsset(asset)
-                      setExpandedAsset(asset.id)
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-danger"
-                    style={{ padding: '4px 8px', fontSize: '0.8rem' }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDeleteAsset(asset.id)
-                    }}
-                  >
-                    Delete
-                  </button>
+                  {userRole === 'admin' && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          startEditAsset(asset)
+                          setExpandedAsset(asset.id)
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteAsset(asset.id)
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
               
@@ -404,17 +435,19 @@ export default function AssetList() {
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                    <button 
-                      className="btn btn-primary" 
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setShowEventForm(showEventForm === asset.id ? null : asset.id)
-                      }}
-                    >
-                      {showEventForm === asset.id ? 'Cancel Event' : 'Add Event'}
-                    </button>
-                  </div>
+                  {userRole === 'admin' && (
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                      <button 
+                        className="btn btn-primary" 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setShowEventForm(showEventForm === asset.id ? null : asset.id)
+                        }}
+                      >
+                        {showEventForm === asset.id ? 'Cancel Event' : 'Add Event'}
+                      </button>
+                    </div>
+                  )}
 
                   {showEventForm === asset.id && (
                     <div style={{ marginBottom: '15px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
