@@ -287,7 +287,7 @@ export default function Dashboard() {
       </div>
       
       <div style={{ textAlign: 'center', marginTop: '40px', padding: '20px', color: '#999', fontSize: '0.85rem', borderTop: '1px solid #eee' }}>
-        Version 1.0
+        Version 2.0
       </div>
     </div>
   )

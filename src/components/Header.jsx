@@ -110,9 +110,6 @@ export default function Header({ session }) {
             </span>
           )}
         </div>
-        <span style={{ fontSize: '0.8rem', color: '#d32f2f', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-          LOCAL EXPERIMENT BUILD
-        </span>
       </div>
       <div className="nav-buttons">
         <button className="btn btn-secondary" onClick={() => navigate('/dashboard')}>
