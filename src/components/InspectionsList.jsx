@@ -356,18 +356,25 @@ export default function InspectionsList() {
               </div>
               <div
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                  gap: '6px',
-                  maxHeight: '200px',
+                  maxHeight: '220px',
                   overflowY: 'auto',
                   padding: '8px',
                   border: '1px solid #ddd',
                   borderRadius: '6px',
+                  background: '#fff',
                 }}
               >
                 {plantItems.map((asset) => (
-                  <label key={asset.id} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <label
+                    key={asset.id}
+                    style={{
+                      display: 'flex',
+                      gap: '8px',
+                      alignItems: 'center',
+                      padding: '6px 4px',
+                      borderBottom: '1px solid #f0f0f0',
+                    }}
+                  >
                     <input
                       type="checkbox"
                       checked={selectedAssetIds.includes(asset.id)}
@@ -379,7 +386,7 @@ export default function InspectionsList() {
                         })
                       }}
                     />
-                    {asset.asset_id} - {asset.name}
+                    {asset.asset_id}
                   </label>
                 ))}
               </div>
