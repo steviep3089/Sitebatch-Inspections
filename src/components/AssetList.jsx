@@ -202,12 +202,14 @@ export default function AssetList() {
   const persistSortOrder = async (updatedAssets) => {
     const updates = updatedAssets.map((item, index) => ({
       id: item.id,
-      asset_id: item.asset_id,
       sort_order: index + 1,
     }))
-    const { error } = await supabase
-      .from('asset_items')
-      .upsert(updates, { onConflict: 'id' })
+    const results = await Promise.all(
+      updates.map((update) =>
+        supabase.from('asset_items').update({ sort_order: update.sort_order }).eq('id', update.id)
+      )
+    )
+    const error = results.find((res) => res.error)?.error
     if (error) {
       console.error('Error updating asset order:', error)
       alert('Error updating asset order: ' + error.message)
