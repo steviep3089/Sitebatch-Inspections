@@ -285,6 +285,41 @@ export default function InspectionsList() {
     }
   }
 
+  const handleDeleteInspection = async (inspectionId) => {
+    const confirmed = window.confirm(
+      'Delete this inspection? This cannot be undone.'
+    )
+    if (!confirmed) return
+
+    try {
+      const { error: checklistError } = await supabase
+        .from('inspection_checklists')
+        .delete()
+        .eq('inspection_id', inspectionId)
+
+      if (checklistError) throw checklistError
+
+      const { error: logDeleteError } = await supabase
+        .from('inspection_logs')
+        .delete()
+        .eq('inspection_id', inspectionId)
+
+      if (logDeleteError) throw logDeleteError
+
+      const { error } = await supabase
+        .from('inspections')
+        .delete()
+        .eq('id', inspectionId)
+
+      if (error) throw error
+
+      fetchData()
+    } catch (error) {
+      console.error('Error deleting inspection:', error)
+      alert('Error deleting inspection: ' + error.message)
+    }
+  }
+
   const getStatusBadge = (inspection) => {
     if (inspection.status === 'completed') return 'status-compliant'
     
@@ -508,42 +543,65 @@ export default function InspectionsList() {
                     </div>
                   </td>
                   <td style={{ padding: '10px' }}>
-                    {inspection.status === 'pending' ? (
-                      <button
-                        className="btn btn-primary"
-                        style={{ padding: '5px 10px', fontSize: '0.85rem' }}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          // Open the inspection modal so the user can
-                          // complete the required fields before marking complete
-                          setSelectedInspection(inspection)
-                        }}
-                      >
-                        Mark Complete
-                      </button>
-                    ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {inspection.status === 'pending' ? (
+                        <button
+                          className="btn btn-primary"
+                          style={{ padding: '5px 10px', fontSize: '0.85rem' }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            // Open the inspection modal so the user can
+                            // complete the required fields before marking complete
+                            setSelectedInspection(inspection)
+                          }}
+                        >
+                          Mark Complete
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            padding: '5px 10px',
+                            fontSize: '0.85rem',
+                            borderRadius: '999px',
+                            border: 'none',
+                            backgroundColor: '#DAA520', // gold
+                            color: '#fff',
+                            fontWeight: 'bold',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            cursor: 'default',
+                          }}
+                        >
+                          <span>Locked</span>
+                        </button>
+                      )}
                       <button
                         type="button"
-                        disabled
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                          padding: '5px 10px',
-                          fontSize: '0.85rem',
-                          borderRadius: '999px',
-                          border: 'none',
-                          backgroundColor: '#DAA520', // gold
-                          color: '#fff',
-                          fontWeight: 'bold',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          cursor: 'default',
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteInspection(inspection.id)
                         }}
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '50%',
+                          border: '1px solid #d9534f',
+                          background: '#fff',
+                          color: '#d9534f',
+                          fontSize: '16px',
+                          lineHeight: '1',
+                          cursor: 'pointer',
+                        }}
+                        aria-label="Delete inspection"
+                        title="Delete inspection"
                       >
-                        <span style={{ fontSize: '1rem' }}>🔒</span>
-                        <span>Locked</span>
+                        x
                       </button>
-                    )}
+                    </div>
                   </td>
                 </tr>
               ))}
