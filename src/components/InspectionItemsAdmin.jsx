@@ -8,6 +8,7 @@ export default function InspectionItemsAdmin() {
   const [selectedTypeId, setSelectedTypeId] = useState('')
   const [selectedAssetId, setSelectedAssetId] = useState('')
   const [items, setItems] = useState([])
+  const [associatedAssetIds, setAssociatedAssetIds] = useState([])
   const [uniqueId, setUniqueId] = useState('')
   const [description, setDescription] = useState('')
   const [capacity, setCapacity] = useState('')
@@ -59,7 +60,11 @@ export default function InspectionItemsAdmin() {
           supabase.from('inspection_types').select('id, name').order('name'),
           // Use the same fields as the rest of the app: asset_id is the
           // visible code (e.g. BX22) rather than asset_code.
-          supabase.from('asset_items').select('id, asset_id').order('asset_id'),
+          supabase
+            .from('asset_items')
+            .select('id, asset_id')
+            .order('sort_order', { ascending: true, nullsFirst: true })
+            .order('asset_id'),
         ])
 
         setInspectionTypes(types || [])
@@ -82,6 +87,7 @@ export default function InspectionItemsAdmin() {
     setDescription('')
     setCapacity('')
     setCapacityNa(false)
+    setAssociatedAssetIds([])
 
     const loadItems = async () => {
       // Require at least one filter (asset or inspection type), but
@@ -92,14 +98,10 @@ export default function InspectionItemsAdmin() {
 
       let query = supabase
         .from('inspection_item_templates')
-        .select('*')
+        .select('*, inspection_item_template_assets(asset_id)')
 
       if (selectedTypeId && selectedTypeId !== 'all') {
         query = query.eq('inspection_type_id', selectedTypeId)
-      }
-
-      if (selectedAssetId && selectedAssetId !== 'all') {
-        query = query.eq('asset_id', selectedAssetId)
       }
 
       query = query.order('sort_order', { ascending: true })
@@ -110,9 +112,20 @@ export default function InspectionItemsAdmin() {
         console.error('Error loading inspection item templates:', error)
         setItems([])
       } else {
-        const loaded = data || []
+        const loaded = (data || []).map((item) => ({
+          ...item,
+          associatedAssetIds: (item.inspection_item_template_assets || []).map((row) => row.asset_id),
+        }))
+        const filtered =
+          selectedAssetId && selectedAssetId !== 'all'
+            ? loaded.filter(
+                (item) =>
+                  item.associatedAssetIds.length === 0 ||
+                  item.associatedAssetIds.includes(selectedAssetId)
+              )
+            : loaded
         // Default sort using natural numeric order in the ID
-        setItems(sortItemsByUniqueId(loaded, sortDirection))
+        setItems(sortItemsByUniqueId(filtered, sortDirection))
       }
     }
 
@@ -121,8 +134,8 @@ export default function InspectionItemsAdmin() {
 
   // Warn if user tries to type items while Asset is set to "All".
   const allowInputForCurrentAsset = () => {
-    if (selectedAssetId === 'all') {
-      alert('An asset must be selected before creating a new item.')
+    if (!selectedTypeId || selectedTypeId === 'all') {
+      alert('Please select a specific inspection type before creating a new item.')
       return false
     }
     return true
@@ -132,8 +145,13 @@ export default function InspectionItemsAdmin() {
     e.preventDefault()
     // You can only add/edit an item when a single
     // asset and inspection type are selected (not "All").
-    if (!selectedTypeId || !selectedAssetId || selectedTypeId === 'all' || selectedAssetId === 'all') {
-      alert('Please select a specific asset and inspection type (not "All") before adding items.')
+    if (!selectedTypeId || selectedTypeId === 'all') {
+      alert('Please select a specific inspection type (not "All") before adding items.')
+      return
+    }
+
+    if (associatedAssetIds.length === 0) {
+      alert('Please select at least one associated asset.')
       return
     }
 
@@ -169,14 +187,43 @@ export default function InspectionItemsAdmin() {
         return
       }
 
-      setItems((prev) => prev.map((item) => (item.id === editingItemId ? updated : item)))
+      const { error: clearError } = await supabase
+        .from('inspection_item_template_assets')
+        .delete()
+        .eq('template_id', editingItemId)
+
+      if (clearError) {
+        console.error('Error clearing template asset links:', clearError)
+        return
+      }
+
+      const links = associatedAssetIds.map((assetId) => ({
+        template_id: editingItemId,
+        asset_id: assetId,
+      }))
+
+      const { error: linkError } = await supabase
+        .from('inspection_item_template_assets')
+        .insert(links)
+
+      if (linkError) {
+        console.error('Error updating template asset links:', linkError)
+        return
+      }
+
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === editingItemId
+            ? { ...updated, associatedAssetIds: [...associatedAssetIds] }
+            : item
+        )
+      )
       setEditingItemId(null)
     } else {
       const { data: inserted, error } = await supabase
         .from('inspection_item_templates')
         .insert({
           inspection_type_id: selectedTypeId,
-          asset_id: selectedAssetId,
           // Keep name populated for convenience, but store detailed
           // fields separately so we can use them in checklists later.
           name: description.trim(),
@@ -193,13 +240,31 @@ export default function InspectionItemsAdmin() {
         return
       }
 
-      setItems((prev) => [...prev, inserted])
+      const links = associatedAssetIds.map((assetId) => ({
+        template_id: inserted.id,
+        asset_id: assetId,
+      }))
+
+      const { error: linkError } = await supabase
+        .from('inspection_item_template_assets')
+        .insert(links)
+
+      if (linkError) {
+        console.error('Error linking template to assets:', linkError)
+        return
+      }
+
+      setItems((prev) => [
+        ...prev,
+        { ...inserted, associatedAssetIds: [...associatedAssetIds] },
+      ])
     }
 
     setUniqueId('')
     setDescription('')
     setCapacity('')
     setCapacityNa(false)
+    setAssociatedAssetIds([])
   }
 
   const handleDeleteItem = async (id) => {
@@ -226,8 +291,8 @@ export default function InspectionItemsAdmin() {
     <div>
       <h2 style={{ marginBottom: '15px' }}>Inspection Item Templates</h2>
       <p style={{ marginBottom: '20px', color: '#555' }}>
-        Choose an asset and inspection type, or select "All" to view
-        templates across multiple assets or types.
+        Choose an asset and inspection type to filter results. Use the
+        Associated Assets list when creating or editing items.
       </p>
 
       <div
@@ -239,7 +304,7 @@ export default function InspectionItemsAdmin() {
         }}
       >
         <div className="form-group" style={{ minWidth: '220px' }}>
-          <label htmlFor="asset-select">Asset</label>
+          <label htmlFor="asset-select">Asset Filter</label>
           <select
             id="asset-select"
             value={selectedAssetId}
@@ -276,10 +341,58 @@ export default function InspectionItemsAdmin() {
       {(selectedAssetId || selectedTypeId) ? (
         <>
           <div className="card" style={{ marginBottom: '20px' }}>
-            <h3 style={{ marginBottom: '10px' }}>Items for this asset &amp; type</h3>
+            <h3 style={{ marginBottom: '10px' }}>Items for this filter</h3>
 
             <form onSubmit={handleAddItem} style={{ marginBottom: '15px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div className="form-group">
+                  <label>Associated Assets *</label>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setAssociatedAssetIds(assets.map((asset) => asset.id))}
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setAssociatedAssetIds([])}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                      gap: '6px',
+                      maxHeight: '160px',
+                      overflowY: 'auto',
+                      padding: '6px',
+                      border: '1px solid #ddd',
+                      borderRadius: '6px',
+                    }}
+                  >
+                    {assets.map((asset) => (
+                      <label key={asset.id} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={associatedAssetIds.includes(asset.id)}
+                          onChange={(e) => {
+                            const checked = e.target.checked
+                            setAssociatedAssetIds((prev) => {
+                              if (checked) return [...prev, asset.id]
+                              return prev.filter((id) => id !== asset.id)
+                            })
+                          }}
+                        />
+                        {asset.asset_id}
+                      </label>
+                    ))}
+                  </div>
+                </div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   <div className="form-group" style={{ flex: 1, minWidth: '180px' }}>
                     <label>Unique Identification *</label>
@@ -406,6 +519,7 @@ export default function InspectionItemsAdmin() {
                             setDescription(item.description || '')
                             setCapacity(item.capacity || '')
                             setCapacityNa(!!item.capacity_na)
+                            setAssociatedAssetIds(item.associatedAssetIds || [])
                           }}
                         >
                           Edit

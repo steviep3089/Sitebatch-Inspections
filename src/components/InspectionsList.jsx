@@ -16,8 +16,8 @@ export default function InspectionsList() {
   const [checklistInspection, setChecklistInspection] = useState(null)
   const [inspectionChecklists, setInspectionChecklists] = useState({})
   const [viewChecklist, setViewChecklist] = useState(null) // { inspection, checklistId }
+  const [selectedAssetIds, setSelectedAssetIds] = useState([])
   const [formData, setFormData] = useState({
-    asset_id: '',
     inspection_type_id: '',
     due_date: '',
     status: 'pending',
@@ -61,6 +61,7 @@ export default function InspectionsList() {
       const { data: assetData, error: assetError } = await supabase
         .from('asset_items')
         .select('id, asset_id, name, status')
+        .order('sort_order', { ascending: true, nullsFirst: true })
         .order('asset_id')
 
       if (assetError) throw assetError
@@ -112,6 +113,11 @@ export default function InspectionsList() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
+      if (selectedAssetIds.length === 0) {
+        alert('Please select at least one asset.')
+        return
+      }
+
       let inspectionTypeId = formData.inspection_type_id
 
       // If "Other" is selected, create new inspection type
@@ -126,20 +132,19 @@ export default function InspectionsList() {
         inspectionTypeId = newType.id
       }
 
-      const { data: newInspection, error } = await supabase
+      const payloads = selectedAssetIds.map((assetId) => ({
+        asset_id: assetId,
+        inspection_type_id: inspectionTypeId,
+        due_date: formData.due_date || null,
+        status: formData.status,
+        notes: formData.notes || null,
+        assigned_to: formData.assigned_to || null,
+      }))
+
+      const { data: newInspections, error } = await supabase
         .from('inspections')
-        .insert([
-          {
-            asset_id: formData.asset_id,
-            inspection_type_id: inspectionTypeId,
-            due_date: formData.due_date || null,
-            status: formData.status,
-            notes: formData.notes || null,
-            assigned_to: formData.assigned_to || null,
-          },
-        ])
+        .insert(payloads)
         .select()
-        .single()
 
       if (error) throw error
 
@@ -153,19 +158,30 @@ export default function InspectionsList() {
           ? ` Assigned to ${formData.assigned_to}.`
           : ''
 
-        const payload = {
-          inspection_id: newInspection.id,
-          action: 'created',
-          details: `${currentUserEmail || 'Unknown user'}: Inspection scheduled from Inspections list.${assignedText}`,
-        }
-        if (currentUserId) {
-          payload.created_by = currentUserId
-        }
-        const { error: logError } = await supabase
-          .from('inspection_logs')
-          .insert(payload)
-        if (logError) {
-          console.error('Error logging inspection creation:', logError)
+        const assetMap = new Map(
+          (plantItems || []).map((asset) => [asset.id, asset.asset_id])
+        )
+
+        const logPayloads = (newInspections || []).map((inspection) => {
+          const assetLabel = assetMap.get(inspection.asset_id) || 'Unknown asset'
+          const payload = {
+            inspection_id: inspection.id,
+            action: 'created',
+            details: `${currentUserEmail || 'Unknown user'}: Inspection scheduled from Inspections list for ${assetLabel}.${assignedText}`,
+          }
+          if (currentUserId) {
+            payload.created_by = currentUserId
+          }
+          return payload
+        })
+
+        if (logPayloads.length > 0) {
+          const { error: logError } = await supabase
+            .from('inspection_logs')
+            .insert(logPayloads)
+          if (logError) {
+            console.error('Error logging inspection creation:', logError)
+          }
         }
       } catch (logError) {
         console.error('Error logging inspection creation:', logError)
@@ -174,8 +190,8 @@ export default function InspectionsList() {
       setShowForm(false)
       setShowOtherType(false)
       setNewTypeName('')
+      setSelectedAssetIds([])
       setFormData({
-        asset_id: '',
         inspection_type_id: '',
         due_date: '',
         status: 'pending',
@@ -322,19 +338,51 @@ export default function InspectionsList() {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label htmlFor="asset_id">Asset *</label>
-              <select
-                id="asset_id"
-                value={formData.asset_id}
-                onChange={(e) => setFormData({ ...formData, asset_id: e.target.value })}
-                required
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setSelectedAssetIds(plantItems.map((asset) => asset.id))}
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setSelectedAssetIds([])}
+                >
+                  Clear
+                </button>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: '6px',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                }}
               >
-                <option value="">Select an asset</option>
                 {plantItems.map((asset) => (
-                  <option key={asset.id} value={asset.id}>
+                  <label key={asset.id} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedAssetIds.includes(asset.id)}
+                      onChange={(e) => {
+                        const checked = e.target.checked
+                        setSelectedAssetIds((prev) => {
+                          if (checked) return [...prev, asset.id]
+                          return prev.filter((id) => id !== asset.id)
+                        })
+                      }}
+                    />
                     {asset.asset_id} - {asset.name}
-                  </option>
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
             <div className="form-group">
               <label htmlFor="inspection_type_id">Inspection Type *</label>

@@ -19,7 +19,11 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
       try {
         const [usersRes, assetsRes, typesRes] = await Promise.all([
           supabase.from('user_profiles').select('id, email, role').order('email'),
-          supabase.from('asset_items').select('id, asset_id').order('asset_id'),
+          supabase
+            .from('asset_items')
+            .select('id, asset_id')
+            .order('sort_order', { ascending: true, nullsFirst: true })
+            .order('asset_id'),
           supabase.from('inspection_types').select('id, name').order('name'),
         ])
 
@@ -61,12 +65,8 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
 
       let query = supabase
         .from('inspection_item_templates')
-        .select('*')
+        .select('*, inspection_item_template_assets(asset_id)')
         .eq('is_active', true)
-
-      if (selectedAssetId && selectedAssetId !== 'all') {
-        query = query.eq('asset_id', selectedAssetId)
-      }
 
       if (selectedTypeId && selectedTypeId !== 'all') {
         query = query.eq('inspection_type_id', selectedTypeId)
@@ -84,7 +84,21 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
         return
       }
 
-      setTemplates(data || [])
+      const loaded = (data || []).map((item) => ({
+        ...item,
+        associatedAssetIds: (item.inspection_item_template_assets || []).map((row) => row.asset_id),
+      }))
+
+      const filtered =
+        selectedAssetId && selectedAssetId !== 'all'
+          ? loaded.filter(
+              (item) =>
+                item.associatedAssetIds.length === 0 ||
+                item.associatedAssetIds.includes(selectedAssetId)
+            )
+          : loaded
+
+      setTemplates(filtered)
       setSelectedTemplateIds([])
       setSelectAll(false)
     }
@@ -316,7 +330,7 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
               </div>
 
               <div className="form-group" style={{ minWidth: '220px' }}>
-                <label>Asset</label>
+                <label>Asset Filter</label>
                 <select
                   value={selectedAssetId}
                   onChange={(e) => setSelectedAssetId(e.target.value)}

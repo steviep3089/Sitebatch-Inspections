@@ -3,6 +3,14 @@ import { supabase } from '../supabaseClient'
 import AssetInspectionTimeline from './AssetInspectionTimeline'
 
 export default function AssetList() {
+  const assetTypeOptions = [
+    { value: 'main_plant', label: 'Main Plants' },
+    { value: 'water_tank', label: 'Water Tanks' },
+    { value: 'aggregate_bin', label: 'Aggregate Bins' },
+    { value: 'generator', label: 'Generators' },
+    { value: 'trailer', label: 'Trailers' },
+  ]
+
   const [assetItems, setAssetItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [roleLoading, setRoleLoading] = useState(true)
@@ -11,11 +19,16 @@ export default function AssetList() {
   const [showEventForm, setShowEventForm] = useState(null) // Track which asset's event form is open
   const [expandedAsset, setExpandedAsset] = useState(null)
   const [editingAssetId, setEditingAssetId] = useState(null)
+  const [draggingId, setDraggingId] = useState(null)
+  const [dragOverId, setDragOverId] = useState(null)
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all')
   const [editFormData, setEditFormData] = useState({
     asset_id: '',
     name: '',
     location: '',
     status: 'active',
+    asset_type: '',
     install_date: '',
     notes: '',
   })
@@ -24,6 +37,7 @@ export default function AssetList() {
     name: '',
     location: '',
     status: 'active',
+    asset_type: '',
     install_date: '',
     notes: '',
   })
@@ -67,6 +81,7 @@ export default function AssetList() {
       const { data, error } = await supabase
         .from('asset_items')
         .select('*')
+        .order('sort_order', { ascending: true, nullsFirst: true })
         .order('asset_id', { ascending: true })
 
       if (error) throw error
@@ -81,14 +96,17 @@ export default function AssetList() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
+      const maxOrder = assetItems.reduce((max, item) => Math.max(max, item.sort_order || 0), 0)
       const { error } = await supabase.from('asset_items').insert([
         {
           asset_id: formData.asset_id,
           name: formData.name || formData.asset_id,
           location: formData.location,
           status: formData.status,
+          asset_type: formData.asset_type || null,
           install_date: formData.install_date,
           notes: formData.notes,
+          sort_order: maxOrder + 1,
         },
       ])
 
@@ -100,6 +118,7 @@ export default function AssetList() {
         name: '',
         location: '',
         status: 'active',
+        asset_type: '',
         install_date: '',
         notes: '',
       })
@@ -117,6 +136,7 @@ export default function AssetList() {
       name: asset.name || '',
       location: asset.location || '',
       status: asset.status || 'active',
+      asset_type: asset.asset_type || '',
       install_date: asset.install_date || '',
       notes: asset.notes || '',
     })
@@ -132,6 +152,7 @@ export default function AssetList() {
           name: editFormData.name || editFormData.asset_id,
           location: editFormData.location,
           status: editFormData.status,
+          asset_type: editFormData.asset_type || null,
           install_date: editFormData.install_date,
           notes: editFormData.notes,
         })
@@ -175,6 +196,48 @@ export default function AssetList() {
   const toggleAssetExpand = (assetId) => {
     setExpandedAsset(expandedAsset === assetId ? null : assetId)
   }
+
+  const canReorder = userRole === 'admin' && statusFilter === 'all' && typeFilter === 'all'
+
+  const persistSortOrder = async (updatedAssets) => {
+    const updates = updatedAssets.map((item, index) => ({
+      id: item.id,
+      sort_order: index + 1,
+    }))
+    const { error } = await supabase
+      .from('asset_items')
+      .upsert(updates, { onConflict: 'id' })
+    if (error) {
+      console.error('Error updating asset order:', error)
+      alert('Error updating asset order: ' + error.message)
+      return false
+    }
+    return true
+  }
+
+  const handleDrop = async (targetId) => {
+    if (!canReorder || !draggingId || draggingId === targetId) return
+    const currentIndex = assetItems.findIndex((item) => item.id === draggingId)
+    const targetIndex = assetItems.findIndex((item) => item.id === targetId)
+    if (currentIndex === -1 || targetIndex === -1) return
+
+    const updated = [...assetItems]
+    const [moved] = updated.splice(currentIndex, 1)
+    updated.splice(targetIndex, 0, moved)
+    setAssetItems(updated)
+    setDraggingId(null)
+    setDragOverId(null)
+    await persistSortOrder(updated)
+  }
+
+  const filteredAssets = assetItems.filter((asset) => {
+    const statusMatch = statusFilter === 'all' || asset.status === statusFilter
+    const typeMatch =
+      typeFilter === 'all' ||
+      (typeFilter === 'unassigned' && !asset.asset_type) ||
+      asset.asset_type === typeFilter
+    return statusMatch && typeMatch
+  })
 
   const handleEventSubmit = async (e, assetId) => {
     e.preventDefault()
@@ -236,6 +299,49 @@ export default function AssetList() {
         )}
       </div>
 
+      <div
+        style={{
+          display: 'flex',
+          gap: '12px',
+          marginBottom: '20px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div className="form-group" style={{ minWidth: '200px' }}>
+          <label>Status</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="decommissioned">Decommissioned</option>
+          </select>
+        </div>
+        <div className="form-group" style={{ minWidth: '220px' }}>
+          <label>Asset Type</label>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+          >
+            <option value="all">All</option>
+            <option value="unassigned">Unassigned</option>
+            {assetTypeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {userRole === 'admin' && (
+          <div style={{ fontSize: '0.85rem', color: '#666', alignSelf: 'flex-end' }}>
+            {canReorder
+              ? 'Drag assets to reorder.'
+              : 'Clear filters to reorder assets.'}
+          </div>
+        )}
+      </div>
+
       {showForm && (
         <div className="card" style={{ marginBottom: '20px' }}>
           <h3 style={{ marginBottom: '15px' }}>Add New Asset</h3>
@@ -281,6 +387,21 @@ export default function AssetList() {
               </select>
             </div>
             <div className="form-group">
+              <label htmlFor="asset_type">Asset Type</label>
+              <select
+                id="asset_type"
+                value={formData.asset_type}
+                onChange={(e) => setFormData({ ...formData, asset_type: e.target.value })}
+              >
+                <option value="">Unassigned</option>
+                {assetTypeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
               <label htmlFor="install_date">Install Date</label>
               <input
                 id="install_date"
@@ -306,11 +427,31 @@ export default function AssetList() {
       )}
 
       <div>
-        {assetItems.length === 0 ? (
-          <p>No assets found. Add your first asset above.</p>
+        {filteredAssets.length === 0 ? (
+          <p>No assets match the current filters.</p>
         ) : (
-          assetItems.map((asset) => (
-            <div key={asset.id} className="card">
+          filteredAssets.map((asset) => (
+            <div
+              key={asset.id}
+              className="card"
+              style={{
+                border: dragOverId === asset.id ? '2px dashed #3b82f6' : undefined,
+              }}
+              onDragOver={(e) => {
+                if (!canReorder) return
+                e.preventDefault()
+                setDragOverId(asset.id)
+              }}
+              onDragLeave={() => {
+                if (!canReorder) return
+                setDragOverId(null)
+              }}
+              onDrop={(e) => {
+                if (!canReorder) return
+                e.preventDefault()
+                handleDrop(asset.id)
+              }}
+            >
               <div
                 style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 onClick={() => toggleAssetExpand(asset.id)}
@@ -324,6 +465,32 @@ export default function AssetList() {
                   </p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {canReorder && (
+                    <span
+                      draggable
+                      onClick={(e) => e.stopPropagation()}
+                      onDragStart={(e) => {
+                        e.stopPropagation()
+                        setDraggingId(asset.id)
+                        e.dataTransfer.effectAllowed = 'move'
+                      }}
+                      onDragEnd={() => {
+                        setDraggingId(null)
+                        setDragOverId(null)
+                      }}
+                      style={{
+                        cursor: 'grab',
+                        fontSize: '1.1rem',
+                        padding: '2px 6px',
+                        border: '1px solid #ddd',
+                        borderRadius: '6px',
+                        background: '#f8f9fa',
+                      }}
+                      title="Drag to reorder"
+                    >
+                      ≡
+                    </span>
+                  )}
                   <span className={`status-badge status-${asset.status === 'active' ? 'compliant' : 'decommissioned'}`}>
                     {asset.status.toUpperCase()}
                   </span>
@@ -401,6 +568,21 @@ export default function AssetList() {
                           >
                             <option value="active">Active</option>
                             <option value="decommissioned">Decommissioned</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor={`edit_asset_type_${asset.id}`}>Asset Type</label>
+                          <select
+                            id={`edit_asset_type_${asset.id}`}
+                            value={editFormData.asset_type}
+                            onChange={(e) => setEditFormData({ ...editFormData, asset_type: e.target.value })}
+                          >
+                            <option value="">Unassigned</option>
+                            {assetTypeOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
                           </select>
                         </div>
                         <div className="form-group">
