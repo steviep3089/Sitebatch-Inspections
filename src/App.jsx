@@ -21,6 +21,23 @@ import RequestItem from './components/RequestItem'
 import UserRequestInbox from './components/UserRequestInbox'
 import UserRequestsAdmin from './components/UserRequestsAdmin'
 
+function Logout() {
+  useEffect(() => {
+    supabase.auth.signOut().finally(() => {
+      sessionStorage.removeItem('force_password_change')
+      window.location.replace('/')
+    })
+  }, [])
+
+  return (
+    <div className="App">
+      <div className="container">
+        <p>Signing out...</p>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -146,6 +163,7 @@ function App() {
             <Route path="/user-request-inbox" element={<UserRequestInbox />} />
             <Route path="/user-requests" element={<UserRequestsAdmin />} />
             <Route path="/change-password" element={<ChangePassword />} />
+            <Route path="/logout" element={<Logout />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
