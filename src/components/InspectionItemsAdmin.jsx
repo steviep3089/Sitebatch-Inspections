@@ -341,11 +341,80 @@ export default function InspectionItemsAdmin() {
       {(selectedAssetId || selectedTypeId) ? (
         <>
           <div className="card" style={{ marginBottom: '20px' }}>
-            <h3 style={{ marginBottom: '10px' }}>Items for this filter</h3>
-
             <form onSubmit={handleAddItem} style={{ marginBottom: '15px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div className="form-group">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                  <div className="form-group" style={{ minWidth: '160px' }}>
+                    <label>Unique Identification *</label>
+                    <input
+                      type="text"
+                      value={uniqueId}
+                      onChange={(e) => {
+                        if (!allowInputForCurrentAsset()) return
+                        setUniqueId(e.target.value)
+                      }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1, minWidth: '200px', maxWidth: '320px' }}>
+                    <label>Description *</label>
+                    <input
+                      type="text"
+                      value={description}
+                      onChange={(e) => {
+                        if (!allowInputForCurrentAsset()) return
+                        setDescription(e.target.value)
+                      }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ minWidth: '140px', maxWidth: '160px' }}>
+                    <label>Capacity</label>
+                    <input
+                      type="text"
+                      value={capacity}
+                      onChange={(e) => {
+                        if (!allowInputForCurrentAsset()) return
+                        setCapacity(e.target.value)
+                      }}
+                      disabled={capacityNa}
+                    />
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                    <input
+                      type="checkbox"
+                      checked={capacityNa}
+                      onChange={(e) => {
+                        if (!allowInputForCurrentAsset()) return
+                        const checked = e.target.checked
+                        setCapacityNa(checked)
+                        if (checked) {
+                          setCapacity('')
+                        }
+                      }}
+                    />
+                    N/A
+                  </label>
+                  <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                    <button type="submit" className="btn btn-primary">
+                      {editingItemId ? 'Save Changes' : 'Add Item'}
+                    </button>
+                    {editingItemId && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setEditingItemId(null)
+                          setUniqueId('')
+                          setDescription('')
+                          setCapacity('')
+                          setCapacityNa(false)
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="form-group" style={{ maxWidth: '520px' }}>
                   <label>Associated Assets *</label>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
                     <button
@@ -402,79 +471,6 @@ export default function InspectionItemsAdmin() {
                       </label>
                     ))}
                   </div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <div className="form-group" style={{ flex: 1, minWidth: '180px' }}>
-                    <label>Unique Identification *</label>
-                    <input
-                      type="text"
-                      value={uniqueId}
-                      onChange={(e) => {
-                        if (!allowInputForCurrentAsset()) return
-                        setUniqueId(e.target.value)
-                      }}
-                    />
-                  </div>
-                  <div className="form-group" style={{ flex: 2, minWidth: '220px' }}>
-                    <label>Description *</label>
-                    <input
-                      type="text"
-                      value={description}
-                      onChange={(e) => {
-                        if (!allowInputForCurrentAsset()) return
-                        setDescription(e.target.value)
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                  <div className="form-group" style={{ minWidth: '180px' }}>
-                    <label>Capacity</label>
-                    <input
-                      type="text"
-                      value={capacity}
-                      onChange={(e) => {
-                        if (!allowInputForCurrentAsset()) return
-                        setCapacity(e.target.value)
-                      }}
-                      disabled={capacityNa}
-                    />
-                  </div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '18px' }}>
-                    <input
-                      type="checkbox"
-                      checked={capacityNa}
-                      onChange={(e) => {
-                        if (!allowInputForCurrentAsset()) return
-                        const checked = e.target.checked
-                        setCapacityNa(checked)
-                        if (checked) {
-                          setCapacity('')
-                        }
-                      }}
-                    />
-                    N/A
-                  </label>
-                  <button type="submit" className="btn btn-primary" style={{ marginTop: '18px' }}>
-                    {editingItemId ? 'Save Changes' : 'Add Item'}
-                  </button>
-                  {editingItemId && (
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      style={{ marginTop: '18px' }}
-                      onClick={() => {
-                        setEditingItemId(null)
-                        setUniqueId('')
-                        setDescription('')
-                        setCapacity('')
-                        setCapacityNa(false)
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  )}
                 </div>
               </div>
             </form>
