@@ -365,9 +365,9 @@ export default function InspectionItemsAdmin() {
                   </div>
                   <div
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                      gap: '6px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
                       maxHeight: '160px',
                       overflowY: 'auto',
                       padding: '6px',
@@ -376,7 +376,17 @@ export default function InspectionItemsAdmin() {
                     }}
                   >
                     {assets.map((asset) => (
-                      <label key={asset.id} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <label
+                        key={asset.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '4px 6px',
+                          width: 'fit-content',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         <input
                           type="checkbox"
                           checked={associatedAssetIds.includes(asset.id)}
