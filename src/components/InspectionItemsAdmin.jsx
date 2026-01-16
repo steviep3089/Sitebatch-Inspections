@@ -13,6 +13,8 @@ export default function InspectionItemsAdmin() {
   const [description, setDescription] = useState('')
   const [capacity, setCapacity] = useState('')
   const [capacityNa, setCapacityNa] = useState(false)
+  const [expiryDate, setExpiryDate] = useState('')
+  const [expiryNa, setExpiryNa] = useState(false)
   const [editingItemId, setEditingItemId] = useState(null)
   const [sortDirection, setSortDirection] = useState('asc') // asc | desc
 
@@ -87,6 +89,8 @@ export default function InspectionItemsAdmin() {
     setDescription('')
     setCapacity('')
     setCapacityNa(false)
+    setExpiryDate('')
+    setExpiryNa(false)
     setAssociatedAssetIds([])
 
     const loadItems = async () => {
@@ -167,6 +171,11 @@ export default function InspectionItemsAdmin() {
       return
     }
 
+    if (!expiryDate && !expiryNa) {
+      alert('Please either select an Expiry Date or tick N/A.')
+      return
+    }
+
     // If we have an editing item, update it instead of inserting
     if (editingItemId) {
       const { data: updated, error } = await supabase
@@ -177,6 +186,8 @@ export default function InspectionItemsAdmin() {
           description: description.trim(),
           capacity: capacityNa ? null : capacity.trim() || null,
           capacity_na: capacityNa,
+          expiry_date: expiryNa ? null : expiryDate || null,
+          expiry_na: expiryNa,
         })
         .eq('id', editingItemId)
         .select()
@@ -231,6 +242,8 @@ export default function InspectionItemsAdmin() {
           description: description.trim(),
           capacity: capacityNa ? null : capacity.trim() || null,
           capacity_na: capacityNa,
+          expiry_date: expiryNa ? null : expiryDate || null,
+          expiry_na: expiryNa,
         })
         .select()
         .single()
@@ -264,6 +277,8 @@ export default function InspectionItemsAdmin() {
     setDescription('')
     setCapacity('')
     setCapacityNa(false)
+    setExpiryDate('')
+    setExpiryNa(false)
     setAssociatedAssetIds([])
   }
 
@@ -343,6 +358,7 @@ export default function InspectionItemsAdmin() {
           <div className="card" style={{ marginBottom: '20px' }}>
             <form onSubmit={handleAddItem} style={{ marginBottom: '15px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <h4 style={{ margin: '0 0 6px' }}>New Inspection Item Creation</h4>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
                   <div className="form-group" style={{ minWidth: '160px' }}>
                     <label>Unique Identification *</label>
@@ -366,8 +382,25 @@ export default function InspectionItemsAdmin() {
                       }}
                     />
                   </div>
-                  <div className="form-group" style={{ minWidth: '140px', maxWidth: '160px' }}>
-                    <label>Capacity</label>
+                  <div className="form-group" style={{ minWidth: '140px', maxWidth: '180px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                      <label style={{ margin: 0 }}>Capacity</label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '4px', margin: 0 }}>
+                        <input
+                          type="checkbox"
+                          checked={capacityNa}
+                          onChange={(e) => {
+                            if (!allowInputForCurrentAsset()) return
+                            const checked = e.target.checked
+                            setCapacityNa(checked)
+                            if (checked) {
+                              setCapacity('')
+                            }
+                          }}
+                        />
+                        N/A
+                      </label>
+                    </div>
                     <input
                       type="text"
                       value={capacity}
@@ -378,21 +411,35 @@ export default function InspectionItemsAdmin() {
                       disabled={capacityNa}
                     />
                   </div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                  <div className="form-group" style={{ minWidth: '170px', maxWidth: '220px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                      <label style={{ margin: 0 }}>Expiry Date</label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '4px', margin: 0 }}>
+                        <input
+                          type="checkbox"
+                          checked={expiryNa}
+                          onChange={(e) => {
+                            if (!allowInputForCurrentAsset()) return
+                            const checked = e.target.checked
+                            setExpiryNa(checked)
+                            if (checked) {
+                              setExpiryDate('')
+                            }
+                          }}
+                        />
+                        N/A
+                      </label>
+                    </div>
                     <input
-                      type="checkbox"
-                      checked={capacityNa}
+                      type="date"
+                      value={expiryDate}
                       onChange={(e) => {
                         if (!allowInputForCurrentAsset()) return
-                        const checked = e.target.checked
-                        setCapacityNa(checked)
-                        if (checked) {
-                          setCapacity('')
-                        }
+                        setExpiryDate(e.target.value)
                       }}
+                      disabled={expiryNa}
                     />
-                    N/A
-                  </label>
+                  </div>
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
                     <button type="submit" className="btn btn-primary">
                       {editingItemId ? 'Save Changes' : 'Add Item'}
@@ -401,20 +448,22 @@ export default function InspectionItemsAdmin() {
                       <button
                         type="button"
                         className="btn btn-secondary"
-                        onClick={() => {
-                          setEditingItemId(null)
-                          setUniqueId('')
-                          setDescription('')
-                          setCapacity('')
-                          setCapacityNa(false)
-                        }}
-                      >
+                      onClick={() => {
+                        setEditingItemId(null)
+                        setUniqueId('')
+                        setDescription('')
+                        setCapacity('')
+                        setCapacityNa(false)
+                        setExpiryDate('')
+                        setExpiryNa(false)
+                      }}
+                    >
                         Cancel
                       </button>
                     )}
                   </div>
                 </div>
-                <div className="form-group" style={{ maxWidth: '520px' }}>
+                <div className="form-group" style={{ maxWidth: '520px', width: 'fit-content' }}>
                   <label>Associated Assets *</label>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
                     <button
@@ -525,6 +574,8 @@ export default function InspectionItemsAdmin() {
                             setDescription(item.description || '')
                             setCapacity(item.capacity || '')
                             setCapacityNa(!!item.capacity_na)
+                            setExpiryDate(item.expiry_date || '')
+                            setExpiryNa(!!item.expiry_na)
                             setAssociatedAssetIds(item.associatedAssetIds || [])
                           }}
                         >
