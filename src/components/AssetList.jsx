@@ -202,6 +202,7 @@ export default function AssetList() {
   const persistSortOrder = async (updatedAssets) => {
     const updates = updatedAssets.map((item, index) => ({
       id: item.id,
+      asset_id: item.asset_id,
       sort_order: index + 1,
     }))
     const { error } = await supabase
