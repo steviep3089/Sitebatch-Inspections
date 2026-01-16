@@ -306,12 +306,16 @@ export default function InspectionsList() {
 
       if (logDeleteError) throw logDeleteError
 
-      const { error } = await supabase
+      const { data: deletedRows, error } = await supabase
         .from('inspections')
         .delete()
         .eq('id', inspectionId)
+        .select('id')
 
       if (error) throw error
+      if (!deletedRows || deletedRows.length === 0) {
+        throw new Error('Delete was blocked. Please check permissions.')
+      }
 
       fetchData()
     } catch (error) {
@@ -586,15 +590,14 @@ export default function InspectionsList() {
                           handleDeleteInspection(inspection.id)
                         }}
                         style={{
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '50%',
-                          border: '1px solid #d9534f',
-                          background: '#fff',
+                          border: 'none',
+                          background: 'transparent',
                           color: '#d9534f',
-                          fontSize: '16px',
+                          fontSize: '18px',
+                          fontWeight: 'bold',
                           lineHeight: '1',
                           cursor: 'pointer',
+                          padding: '0 6px',
                         }}
                         aria-label="Delete inspection"
                         title="Delete inspection"
