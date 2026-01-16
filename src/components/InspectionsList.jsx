@@ -362,6 +362,9 @@ export default function InspectionsList() {
                   border: '1px solid #ddd',
                   borderRadius: '6px',
                   background: '#fff',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
                 }}
               >
                 {plantItems.map((asset) => (
@@ -369,10 +372,11 @@ export default function InspectionsList() {
                     key={asset.id}
                     style={{
                       display: 'flex',
-                      gap: '8px',
                       alignItems: 'center',
-                      padding: '6px 4px',
-                      borderBottom: '1px solid #f0f0f0',
+                      gap: '8px',
+                      padding: '6px 8px',
+                      width: 'fit-content',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     <input
