@@ -207,22 +207,22 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '30px' }}>
-        <div className="card" style={{ cursor: 'pointer' }} onClick={() => handleCardClick('assets')}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', marginBottom: '30px' }}>
+        <div className="card" style={{ cursor: 'pointer', padding: '14px 16px' }} onClick={() => handleCardClick('assets')}>
           <h3 style={{ marginBottom: '8px', fontSize: '0.95rem' }}>Total Assets</h3>
           <p style={{ fontSize: '1.6rem', fontWeight: 'bold' }}>{stats.totalAssets}</p>
         </div>
-        <div className="card" style={{ cursor: 'pointer' }} onClick={() => handleCardClick('active')}>
+        <div className="card" style={{ cursor: 'pointer', padding: '14px 16px' }} onClick={() => handleCardClick('active')}>
           <h3 style={{ marginBottom: '8px', fontSize: '0.95rem' }}>Active Assets</h3>
           <p style={{ fontSize: '1.6rem', fontWeight: 'bold' }}>{stats.activeAssets}</p>
         </div>
-        <div className="card" style={{ cursor: 'pointer' }} onClick={() => handleCardClick('overdue')}>
+        <div className="card" style={{ cursor: 'pointer', padding: '14px 16px' }} onClick={() => handleCardClick('overdue')}>
           <h3 style={{ marginBottom: '8px', fontSize: '0.95rem' }}>Overdue Inspections</h3>
           <p style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#f44336' }}>
             {stats.overdueInspections}
           </p>
         </div>
-        <div className="card" style={{ cursor: 'pointer' }} onClick={() => handleCardClick('dueSoon')}>
+        <div className="card" style={{ cursor: 'pointer', padding: '14px 16px' }} onClick={() => handleCardClick('dueSoon')}>
           <h3 style={{ marginBottom: '8px', fontSize: '0.95rem' }}>
             Inspection Due Soon<br />(30 Days)
           </h3>
@@ -230,13 +230,13 @@ export default function Dashboard() {
             {stats.dueSoonInspections}
           </p>
         </div>
-        <div className="card" style={{ cursor: 'pointer' }} onClick={() => handleCardClick('expiredItems')}>
+        <div className="card" style={{ cursor: 'pointer', padding: '14px 16px' }} onClick={() => handleCardClick('expiredItems')}>
           <h3 style={{ marginBottom: '8px', fontSize: '0.95rem' }}>Expired Items</h3>
           <p style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#f44336' }}>
             {stats.expiredItems}
           </p>
         </div>
-        <div className="card" style={{ cursor: 'pointer' }} onClick={() => handleCardClick('dueSoonItems')}>
+        <div className="card" style={{ cursor: 'pointer', padding: '14px 16px' }} onClick={() => handleCardClick('dueSoonItems')}>
           <h3 style={{ marginBottom: '8px', fontSize: '0.95rem' }}>
             Items Due Soon<br />(30 Days)
           </h3>
