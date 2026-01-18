@@ -351,68 +351,68 @@ export default function Dashboard() {
         </div>
       )}
 
-      {!selectedView && (
-        <>
-          <div className="card" style={{ marginBottom: '20px' }}>
-            <h3 style={{ marginBottom: '15px' }}>Upcoming Inspections (30-90 days)</h3>
-            {upcomingInspections.length === 0 ? (
-              <p>No upcoming inspections found.</p>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #ddd' }}>
-                    <th style={{ textAlign: 'left', padding: '10px' }}>Asset ID</th>
-                    <th style={{ textAlign: 'left', padding: '10px' }}>Asset Name</th>
-                    <th style={{ textAlign: 'left', padding: '10px' }}>Inspection Type</th>
-                    <th style={{ textAlign: 'left', padding: '10px' }}>Due Date</th>
+      {selectedView === 'dueSoon' && (
+        <div className="card" style={{ marginBottom: '20px' }}>
+          <h3 style={{ marginBottom: '15px' }}>Upcoming Inspections (30-90 days)</h3>
+          {upcomingInspections.length === 0 ? (
+            <p>No upcoming inspections found.</p>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #ddd' }}>
+                  <th style={{ textAlign: 'left', padding: '10px' }}>Asset ID</th>
+                  <th style={{ textAlign: 'left', padding: '10px' }}>Asset Name</th>
+                  <th style={{ textAlign: 'left', padding: '10px' }}>Inspection Type</th>
+                  <th style={{ textAlign: 'left', padding: '10px' }}>Due Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {upcomingInspections.map((inspection) => (
+                  <tr key={inspection.id} style={{ borderBottom: '1px solid #eee' }}>
+                    <td style={{ padding: '10px' }}>{inspection.asset_items?.asset_id}</td>
+                    <td style={{ padding: '10px' }}>{inspection.asset_items?.name}</td>
+                    <td style={{ padding: '10px' }}>{inspection.inspection_types?.name}</td>
+                    <td style={{ padding: '10px' }}>
+                      {new Date(inspection.due_date).toLocaleDateString('en-GB')}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {upcomingInspections.map((inspection) => (
-                    <tr key={inspection.id} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '10px' }}>{inspection.asset_items?.asset_id}</td>
-                      <td style={{ padding: '10px' }}>{inspection.asset_items?.name}</td>
-                      <td style={{ padding: '10px' }}>{inspection.inspection_types?.name}</td>
-                      <td style={{ padding: '10px' }}>
-                        {new Date(inspection.due_date).toLocaleDateString('en-GB')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
-          <div className="card">
-            <h3 style={{ marginBottom: '15px' }}>Upcoming Items (30-90 days)</h3>
-            {upcomingItems.length === 0 ? (
-              <p>No upcoming items found.</p>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #ddd' }}>
-                    <th style={{ textAlign: 'left', padding: '10px' }}>Unique ID</th>
-                    <th style={{ textAlign: 'left', padding: '10px' }}>Description</th>
-                    <th style={{ textAlign: 'left', padding: '10px' }}>Expiry Date</th>
+      {selectedView === 'dueSoonItems' && (
+        <div className="card">
+          <h3 style={{ marginBottom: '15px' }}>Upcoming Items (30-90 days)</h3>
+          {upcomingItems.length === 0 ? (
+            <p>No upcoming items found.</p>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #ddd' }}>
+                  <th style={{ textAlign: 'left', padding: '10px' }}>Unique ID</th>
+                  <th style={{ textAlign: 'left', padding: '10px' }}>Description</th>
+                  <th style={{ textAlign: 'left', padding: '10px' }}>Expiry Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {upcomingItems.map((item) => (
+                  <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
+                    <td style={{ padding: '10px' }}>{item.unique_id || ''}</td>
+                    <td style={{ padding: '10px' }}>{item.description || ''}</td>
+                    <td style={{ padding: '10px' }}>
+                      {item.expiry_date
+                        ? new Date(item.expiry_date).toLocaleDateString('en-GB')
+                        : ''}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {upcomingItems.map((item) => (
-                    <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '10px' }}>{item.unique_id || ''}</td>
-                      <td style={{ padding: '10px' }}>{item.description || ''}</td>
-                      <td style={{ padding: '10px' }}>
-                        {item.expiry_date
-                          ? new Date(item.expiry_date).toLocaleDateString('en-GB')
-                          : ''}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       )}
       
       <div style={{ textAlign: 'center', marginTop: '40px', padding: '20px', color: '#999', fontSize: '0.85rem', borderTop: '1px solid #eee' }}>
