@@ -176,6 +176,29 @@ export default function InspectionItemsAdmin() {
       return
     }
 
+    const triggerItemReminder = async (templateId) => {
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+        if (!supabaseUrl || !supabaseAnonKey) {
+          console.warn('Missing Supabase env vars for item reminders.')
+          return
+        }
+
+        await fetch(`${supabaseUrl}/functions/v1/send-item-reminders`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: supabaseAnonKey,
+          },
+          body: JSON.stringify({ template_id: templateId }),
+        })
+      } catch (funcError) {
+        console.error('Error invoking send-item-reminders:', funcError)
+      }
+    }
+
     // If we have an editing item, update it instead of inserting
     if (editingItemId) {
       const { data: updated, error } = await supabase
@@ -222,13 +245,7 @@ export default function InspectionItemsAdmin() {
         return
       }
 
-      try {
-        await supabase.functions.invoke('send-item-reminders', {
-          body: { template_id: editingItemId },
-        })
-      } catch (funcError) {
-        console.error('Error invoking send-item-reminders:', funcError)
-      }
+      await triggerItemReminder(editingItemId)
 
       setItems((prev) =>
         prev.map((item) =>
@@ -275,13 +292,7 @@ export default function InspectionItemsAdmin() {
         return
       }
 
-      try {
-        await supabase.functions.invoke('send-item-reminders', {
-          body: { template_id: inserted.id },
-        })
-      } catch (funcError) {
-        console.error('Error invoking send-item-reminders:', funcError)
-      }
+      await triggerItemReminder(inserted.id)
 
       setItems((prev) => [
         ...prev,
