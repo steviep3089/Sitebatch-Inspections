@@ -12,6 +12,7 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
   const [templates, setTemplates] = useState([])
   const [selectedTemplateIds, setSelectedTemplateIds] = useState([])
   const [selectAll, setSelectAll] = useState(false)
+  const [addedTemplates, setAddedTemplates] = useState([])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
         if (inspection?.inspection_type_id) {
           setSelectedTypeId(inspection.inspection_type_id)
         }
+        setAddedTemplates([])
       } catch (error) {
         console.error('Error loading checklist data:', error)
       } finally {
@@ -124,6 +126,34 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
     }
   }
 
+  const handleAddSelected = () => {
+    if (selectedTemplateIds.length === 0) {
+      alert('Please select at least one item to add.')
+      return
+    }
+    const selected = templates.filter((t) => selectedTemplateIds.includes(t.id))
+    setAddedTemplates((prev) => {
+      const existingIds = new Set(prev.map((t) => t.id))
+      const next = [...prev]
+      selected.forEach((item) => {
+        if (!existingIds.has(item.id)) {
+          next.push(item)
+        }
+      })
+      return next
+    })
+    setSelectedTemplateIds([])
+    setSelectAll(false)
+  }
+
+  const handleRemoveAdded = (id) => {
+    setAddedTemplates((prev) => prev.filter((t) => t.id !== id))
+  }
+
+  const handleClearAdded = () => {
+    setAddedTemplates([])
+  }
+
   const handleCreateChecklist = async () => {
     if (!inspection?.id) {
       alert('Inspection details are missing; cannot create checklist.')
@@ -137,7 +167,7 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
       alert('Please select a user to assign the checklist to.')
       return
     }
-    if (selectedTemplateIds.length === 0) {
+    if (addedTemplates.length === 0 && selectedTemplateIds.length === 0) {
       alert('Please select at least one item.')
       return
     }
@@ -167,9 +197,10 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
 
       if (checklistError) throw checklistError
 
-      const chosenTemplates = templates.filter((t) =>
-        selectedTemplateIds.includes(t.id)
-      )
+      const chosenTemplates =
+        addedTemplates.length > 0
+          ? addedTemplates
+          : templates.filter((t) => selectedTemplateIds.includes(t.id))
 
       if (chosenTemplates.length > 0) {
         const itemsToInsert = chosenTemplates.map((t, index) => ({
@@ -238,6 +269,9 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
       }
 
       alert('Checklist created and assigned.')
+      setSelectedTemplateIds([])
+      setSelectAll(false)
+      setAddedTemplates([])
       if (onCreated) onCreated()
     } catch (error) {
       console.error('Error creating checklist:', error)
@@ -396,6 +430,13 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
                           />
                           Select all items
                         </label>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={handleAddSelected}
+                        >
+                          Add to checklist
+                        </button>
                       </div>
                       <table
                         style={{
@@ -437,6 +478,70 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
                     </>
                   )}
                 </>
+              )}
+            </div>
+
+            <div className="card" style={{ marginTop: '14px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '10px',
+                }}
+              >
+                <h3 style={{ margin: 0 }}>Items added to checklist</h3>
+                {addedTemplates.length > 0 && (
+                  <button type="button" className="btn btn-secondary" onClick={handleClearAdded}>
+                    Clear
+                  </button>
+                )}
+              </div>
+              {addedTemplates.length === 0 ? (
+                <p style={{ color: '#777' }}>No items added yet.</p>
+              ) : (
+                <table
+                  style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #ddd' }}>
+                      <th style={{ padding: '6px', textAlign: 'left' }}>Unique ID</th>
+                      <th style={{ padding: '6px', textAlign: 'left' }}>Description</th>
+                      <th style={{ padding: '6px', textAlign: 'left' }}>Type</th>
+                      <th style={{ padding: '6px', textAlign: 'left' }}>Capacity / N/A</th>
+                      <th style={{ padding: '6px', textAlign: 'left' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {addedTemplates.map((item) => (
+                      <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: '6px' }}>{item.unique_id || ''}</td>
+                        <td style={{ padding: '6px' }}>{item.description || ''}</td>
+                        <td style={{ padding: '6px' }}>
+                          {inspectionTypes.find((t) => t.id === item.inspection_type_id)?.name ||
+                            ''}
+                        </td>
+                        <td style={{ padding: '6px' }}>
+                          {item.capacity_na ? 'N/A' : item.capacity || ''}
+                        </td>
+                        <td style={{ padding: '6px' }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ padding: '4px 8px', fontSize: '0.85rem' }}
+                            onClick={() => handleRemoveAdded(item.id)}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </div>
 

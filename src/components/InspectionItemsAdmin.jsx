@@ -222,6 +222,14 @@ export default function InspectionItemsAdmin() {
         return
       }
 
+      try {
+        await supabase.functions.invoke('send-item-reminders', {
+          body: { template_id: editingItemId },
+        })
+      } catch (funcError) {
+        console.error('Error invoking send-item-reminders:', funcError)
+      }
+
       setItems((prev) =>
         prev.map((item) =>
           item.id === editingItemId
@@ -265,6 +273,14 @@ export default function InspectionItemsAdmin() {
       if (linkError) {
         console.error('Error linking template to assets:', linkError)
         return
+      }
+
+      try {
+        await supabase.functions.invoke('send-item-reminders', {
+          body: { template_id: inserted.id },
+        })
+      } catch (funcError) {
+        console.error('Error invoking send-item-reminders:', funcError)
       }
 
       setItems((prev) => [

@@ -22,7 +22,25 @@ supabase functions deploy send-inspection-reminders
 **Schedule (add to Supabase Dashboard):**
 - Run daily at 9:00 AM: `0 9 * * *`
 
-### 2. update-overdue-inspections
+### 2. send-item-reminders
+
+Sends email reminders for inspection items that are due soon (30/14/7/1 days) and overdue.
+
+**Functionality:**
+- Checks items expiring within the next 30 days
+- Creates reminders at 30, 14, 7, and 1 day(s) before the expiry date
+- Sends overdue emails once when items are expired
+- Marks reminders as sent to avoid duplicates
+
+**Deploy:**
+```bash
+supabase functions deploy send-item-reminders
+```
+
+**Schedule (add to Supabase Dashboard):**
+- Run daily at 9:10 AM: `10 9 * * *`
+
+### 3. update-overdue-inspections
 
 Updates the status of inspections that are past their due date to "overdue".
 
@@ -44,8 +62,9 @@ supabase functions deploy update-overdue-inspections
    ```bash
    supabase login
    supabase link --project-ref your-project-ref
-   supabase functions deploy send-inspection-reminders
-   supabase functions deploy update-overdue-inspections
+  supabase functions deploy send-inspection-reminders
+  supabase functions deploy send-item-reminders
+  supabase functions deploy update-overdue-inspections
    ```
 
 2. **Set up Cron Jobs:**
@@ -71,9 +90,19 @@ These are automatically available in Supabase Edge Functions:
 supabase functions serve send-inspection-reminders
 ```
 
+```bash
+supabase functions serve send-item-reminders
+```
+
 Then call it:
 ```bash
 curl -i --location --request POST 'http://localhost:54321/functions/v1/send-inspection-reminders' \
+  --header 'Authorization: Bearer YOUR_ANON_KEY' \
+  --header 'Content-Type: application/json'
+```
+
+```bash
+curl -i --location --request POST 'http://localhost:54321/functions/v1/send-item-reminders' \
   --header 'Authorization: Bearer YOUR_ANON_KEY' \
   --header 'Content-Type: application/json'
 ```

@@ -8,6 +8,9 @@
     },
     "send-inspection-reminders": {
       "verify_jwt": false
+    },
+    "send-item-reminders": {
+      "verify_jwt": false
     }
   }
 }
