@@ -7,11 +7,13 @@ export default function Dashboard() {
     activeAssets: 0,
     overdueInspections: 0,
     dueSoonInspections: 0,
+    expiredItems: 0,
+    dueSoonItems: 0,
   })
   const [upcomingInspections, setUpcomingInspections] = useState([])
   const [loading, setLoading] = useState(true)
   const [userEmail, setUserEmail] = useState('')
-  const [selectedView, setSelectedView] = useState(null) // 'assets', 'active', 'overdue', 'dueSoon'
+  const [selectedView, setSelectedView] = useState(null) // 'assets', 'active', 'overdue', 'dueSoon', 'expiredItems', 'dueSoonItems'
   const [filteredData, setFilteredData] = useState([])
 
   useEffect(() => {
@@ -55,6 +57,21 @@ export default function Dashboard() {
         .gte('due_date', today)
         .lte('due_date', thirtyDaysFromNow)
 
+      const { data: expiredItemsData } = await supabase
+        .from('inspection_item_templates')
+        .select('id')
+        .eq('expiry_na', false)
+        .not('expiry_date', 'is', null)
+        .lt('expiry_date', today)
+
+      const { data: dueSoonItemsData } = await supabase
+        .from('inspection_item_templates')
+        .select('id')
+        .eq('expiry_na', false)
+        .not('expiry_date', 'is', null)
+        .gte('expiry_date', today)
+        .lte('expiry_date', thirtyDaysFromNow)
+
       // Fetch upcoming inspections with plant details
       const { data: upcomingData } = await supabase
         .from('inspections')
@@ -75,6 +92,8 @@ export default function Dashboard() {
         activeAssets,
         overdueInspections: overdueData?.length || 0,
         dueSoonInspections: dueSoonData?.length || 0,
+        expiredItems: expiredItemsData?.length || 0,
+        dueSoonItems: dueSoonItemsData?.length || 0,
       })
       setUpcomingInspections(upcomingData || [])
     } catch (error) {
@@ -143,6 +162,32 @@ export default function Dashboard() {
             .order('due_date', { ascending: true })
           setFilteredData(dueSoonInsp || [])
           break
+        case 'expiredItems':
+          const todayItems = new Date().toISOString().split('T')[0]
+          const { data: expiredItems } = await supabase
+            .from('inspection_item_templates')
+            .select('id, unique_id, description, expiry_date, expiry_na')
+            .eq('expiry_na', false)
+            .not('expiry_date', 'is', null)
+            .lt('expiry_date', todayItems)
+            .order('expiry_date', { ascending: true })
+          setFilteredData(expiredItems || [])
+          break
+        case 'dueSoonItems':
+          const todaySoonItems = new Date().toISOString().split('T')[0]
+          const thirtyDaysItems = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split('T')[0]
+          const { data: dueSoonItems } = await supabase
+            .from('inspection_item_templates')
+            .select('id, unique_id, description, expiry_date, expiry_na')
+            .eq('expiry_na', false)
+            .not('expiry_date', 'is', null)
+            .gte('expiry_date', todaySoonItems)
+            .lte('expiry_date', thirtyDaysItems)
+            .order('expiry_date', { ascending: true })
+          setFilteredData(dueSoonItems || [])
+          break
       }
     } catch (error) {
       console.error('Error fetching filtered data:', error)
@@ -183,6 +228,18 @@ export default function Dashboard() {
             {stats.dueSoonInspections}
           </p>
         </div>
+        <div className="card" style={{ cursor: 'pointer' }} onClick={() => handleCardClick('expiredItems')}>
+          <h3 style={{ marginBottom: '10px' }}>Expired Items</h3>
+          <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#f44336' }}>
+            {stats.expiredItems}
+          </p>
+        </div>
+        <div className="card" style={{ cursor: 'pointer' }} onClick={() => handleCardClick('dueSoonItems')}>
+          <h3 style={{ marginBottom: '10px' }}>Items Due Soon (30 days)</h3>
+          <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#ff9800' }}>
+            {stats.dueSoonItems}
+          </p>
+        </div>
       </div>
 
       {selectedView && (
@@ -193,6 +250,8 @@ export default function Dashboard() {
               {selectedView === 'active' && 'Active Assets'}
               {selectedView === 'overdue' && 'Overdue Inspections'}
               {selectedView === 'dueSoon' && 'Inspections Due Soon'}
+              {selectedView === 'expiredItems' && 'Expired Items'}
+              {selectedView === 'dueSoonItems' && 'Items Due Soon'}
             </h3>
             <button 
               className="btn btn-secondary" 
@@ -215,6 +274,12 @@ export default function Dashboard() {
                       <th style={{ textAlign: 'left', padding: '10px' }}>Asset Name</th>
                       <th style={{ textAlign: 'left', padding: '10px' }}>Status</th>
                     </>
+                  ) : (selectedView === 'expiredItems' || selectedView === 'dueSoonItems') ? (
+                    <>
+                      <th style={{ textAlign: 'left', padding: '10px' }}>Unique ID</th>
+                      <th style={{ textAlign: 'left', padding: '10px' }}>Description</th>
+                      <th style={{ textAlign: 'left', padding: '10px' }}>Expiry Date</th>
+                    </>
                   ) : (
                     <>
                       <th style={{ textAlign: 'left', padding: '10px' }}>Asset ID</th>
@@ -236,6 +301,16 @@ export default function Dashboard() {
                           <span className={`status-badge ${item.status === 'active' ? 'status-compliant' : 'status-overdue'}`}>
                             {item.status.toUpperCase()}
                           </span>
+                        </td>
+                      </>
+                    ) : (selectedView === 'expiredItems' || selectedView === 'dueSoonItems') ? (
+                      <>
+                        <td style={{ padding: '10px' }}>{item.unique_id || ''}</td>
+                        <td style={{ padding: '10px' }}>{item.description || ''}</td>
+                        <td style={{ padding: '10px' }}>
+                          {item.expiry_date
+                            ? new Date(item.expiry_date).toLocaleDateString('en-GB')
+                            : ''}
                         </td>
                       </>
                     ) : (
