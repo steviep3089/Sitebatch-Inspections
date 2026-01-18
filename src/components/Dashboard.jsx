@@ -207,36 +207,36 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '30px' }}>
         <div className="card" style={{ cursor: 'pointer' }} onClick={() => handleCardClick('assets')}>
-          <h3 style={{ marginBottom: '10px' }}>Total Assets</h3>
-          <p style={{ fontSize: '2rem', fontWeight: 'bold' }}>{stats.totalAssets}</p>
+          <h3 style={{ marginBottom: '8px', fontSize: '0.95rem' }}>Total Assets</h3>
+          <p style={{ fontSize: '1.6rem', fontWeight: 'bold' }}>{stats.totalAssets}</p>
         </div>
         <div className="card" style={{ cursor: 'pointer' }} onClick={() => handleCardClick('active')}>
-          <h3 style={{ marginBottom: '10px' }}>Active Assets</h3>
-          <p style={{ fontSize: '2rem', fontWeight: 'bold' }}>{stats.activeAssets}</p>
+          <h3 style={{ marginBottom: '8px', fontSize: '0.95rem' }}>Active Assets</h3>
+          <p style={{ fontSize: '1.6rem', fontWeight: 'bold' }}>{stats.activeAssets}</p>
         </div>
         <div className="card" style={{ cursor: 'pointer' }} onClick={() => handleCardClick('overdue')}>
-          <h3 style={{ marginBottom: '10px' }}>Overdue Inspections</h3>
-          <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#f44336' }}>
+          <h3 style={{ marginBottom: '8px', fontSize: '0.95rem' }}>Overdue Inspections</h3>
+          <p style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#f44336' }}>
             {stats.overdueInspections}
           </p>
         </div>
         <div className="card" style={{ cursor: 'pointer' }} onClick={() => handleCardClick('dueSoon')}>
-          <h3 style={{ marginBottom: '10px' }}>Due Soon (30 days)</h3>
-          <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#ff9800' }}>
+          <h3 style={{ marginBottom: '8px', fontSize: '0.95rem' }}>Due Soon (30 days)</h3>
+          <p style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#ff9800' }}>
             {stats.dueSoonInspections}
           </p>
         </div>
         <div className="card" style={{ cursor: 'pointer' }} onClick={() => handleCardClick('expiredItems')}>
-          <h3 style={{ marginBottom: '10px' }}>Expired Items</h3>
-          <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#f44336' }}>
+          <h3 style={{ marginBottom: '8px', fontSize: '0.95rem' }}>Expired Items</h3>
+          <p style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#f44336' }}>
             {stats.expiredItems}
           </p>
         </div>
         <div className="card" style={{ cursor: 'pointer' }} onClick={() => handleCardClick('dueSoonItems')}>
-          <h3 style={{ marginBottom: '10px' }}>Items Due Soon (30 days)</h3>
-          <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#ff9800' }}>
+          <h3 style={{ marginBottom: '8px', fontSize: '0.95rem' }}>Items Due Soon (30 days)</h3>
+          <p style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#ff9800' }}>
             {stats.dueSoonItems}
           </p>
         </div>
