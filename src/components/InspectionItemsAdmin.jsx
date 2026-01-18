@@ -552,6 +552,7 @@ export default function InspectionItemsAdmin() {
                       </th>
                       <th style={{ textAlign: 'left', padding: '8px' }}>Description</th>
                       <th style={{ textAlign: 'left', padding: '8px' }}>Capacity / N/A</th>
+                      <th style={{ textAlign: 'left', padding: '8px' }}>Expiry Date / N/A</th>
                       <th style={{ textAlign: 'left', padding: '8px' }}>Actions</th>
                     </tr>
                   </thead>
@@ -562,6 +563,13 @@ export default function InspectionItemsAdmin() {
                       <td style={{ padding: '8px' }}>{item.description || ''}</td>
                       <td style={{ padding: '8px' }}>
                         {item.capacity_na ? 'N/A' : item.capacity || ''}
+                      </td>
+                      <td style={{ padding: '8px' }}>
+                        {item.expiry_na
+                          ? 'N/A'
+                          : item.expiry_date
+                            ? new Date(item.expiry_date).toLocaleDateString('en-GB')
+                            : ''}
                       </td>
                       <td style={{ padding: '8px' }}>
                         <button
