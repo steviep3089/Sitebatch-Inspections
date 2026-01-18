@@ -11,6 +11,7 @@ export default function Dashboard() {
     dueSoonItems: 0,
   })
   const [upcomingInspections, setUpcomingInspections] = useState([])
+  const [upcomingItems, setUpcomingItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [userEmail, setUserEmail] = useState('')
   const [selectedView, setSelectedView] = useState(null) // 'assets', 'active', 'overdue', 'dueSoon', 'expiredItems', 'dueSoonItems'
@@ -43,6 +44,9 @@ export default function Dashboard() {
       const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
         .toISOString()
         .split('T')[0]
+      const ninetyDaysFromNow = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split('T')[0]
 
       const { data: overdueData } = await supabase
         .from('inspections')
@@ -72,7 +76,7 @@ export default function Dashboard() {
         .gte('expiry_date', today)
         .lte('expiry_date', thirtyDaysFromNow)
 
-      // Fetch upcoming inspections with plant details
+      // Fetch upcoming inspections (30-90 days) with asset details
       const { data: upcomingData } = await supabase
         .from('inspections')
         .select(`
@@ -83,8 +87,19 @@ export default function Dashboard() {
           inspection_types (name)
         `)
         .eq('status', 'pending')
-        .gte('due_date', today)
+        .gt('due_date', thirtyDaysFromNow)
+        .lte('due_date', ninetyDaysFromNow)
         .order('due_date', { ascending: true })
+        .limit(10)
+
+      const { data: upcomingItemsData } = await supabase
+        .from('inspection_item_templates')
+        .select('id, unique_id, description, expiry_date, expiry_na')
+        .eq('expiry_na', false)
+        .not('expiry_date', 'is', null)
+        .gt('expiry_date', thirtyDaysFromNow)
+        .lte('expiry_date', ninetyDaysFromNow)
+        .order('expiry_date', { ascending: true })
         .limit(10)
 
       setStats({
@@ -96,6 +111,7 @@ export default function Dashboard() {
         dueSoonItems: dueSoonItemsData?.length || 0,
       })
       setUpcomingInspections(upcomingData || [])
+      setUpcomingItems(upcomingItemsData || [])
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
     } finally {
@@ -335,8 +351,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="card">
-        <h3 style={{ marginBottom: '15px' }}>Upcoming Inspections</h3>
+      <div className="card" style={{ marginBottom: '20px' }}>
+        <h3 style={{ marginBottom: '15px' }}>Upcoming Inspections (30-90 days)</h3>
         {upcomingInspections.length === 0 ? (
           <p>No upcoming inspections found.</p>
         ) : (
@@ -356,7 +372,37 @@ export default function Dashboard() {
                   <td style={{ padding: '10px' }}>{inspection.asset_items?.name}</td>
                   <td style={{ padding: '10px' }}>{inspection.inspection_types?.name}</td>
                   <td style={{ padding: '10px' }}>
-                    {new Date(inspection.due_date).toLocaleDateString()}
+                    {new Date(inspection.due_date).toLocaleDateString('en-GB')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginBottom: '15px' }}>Upcoming Items (30-90 days)</h3>
+        {upcomingItems.length === 0 ? (
+          <p>No upcoming items found.</p>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #ddd' }}>
+                <th style={{ textAlign: 'left', padding: '10px' }}>Unique ID</th>
+                <th style={{ textAlign: 'left', padding: '10px' }}>Description</th>
+                <th style={{ textAlign: 'left', padding: '10px' }}>Expiry Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {upcomingItems.map((item) => (
+                <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: '10px' }}>{item.unique_id || ''}</td>
+                  <td style={{ padding: '10px' }}>{item.description || ''}</td>
+                  <td style={{ padding: '10px' }}>
+                    {item.expiry_date
+                      ? new Date(item.expiry_date).toLocaleDateString('en-GB')
+                      : ''}
                   </td>
                 </tr>
               ))}
