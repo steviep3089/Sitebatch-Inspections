@@ -7,6 +7,8 @@ export default function ChecklistAlertResolveModal({ alertId, checklistId, onClo
   const [checklist, setChecklist] = useState(null)
   const [issueItems, setIssueItems] = useState([])
   const [resolutions, setResolutions] = useState({})
+  const [alert, setAlert] = useState(null)
+  const isResolved = alert?.is_resolved === true
 
   useEffect(() => {
     if (!alertId || !checklistId) return
@@ -16,6 +18,15 @@ export default function ChecklistAlertResolveModal({ alertId, checklistId, onClo
   const loadChecklist = async () => {
     setLoading(true)
     try {
+      const { data: alertData, error: alertError } = await supabase
+        .from('checklist_alerts')
+        .select('id, is_resolved, resolved_at, resolved_by')
+        .eq('id', alertId)
+        .single()
+
+      if (alertError) throw alertError
+      setAlert(alertData)
+
       const { data: checklistData, error: checklistError } = await supabase
         .from('inspection_checklists')
         .select(`
@@ -44,11 +55,22 @@ export default function ChecklistAlertResolveModal({ alertId, checklistId, onClo
         return item.comments && item.comments.trim().length > 0
       })
 
+      const { data: resolutionData, error: resolutionError } = await supabase
+        .from('checklist_alert_resolutions')
+        .select('checklist_item_id, resolution_text')
+        .eq('alert_id', alertId)
+
+      if (resolutionError) throw resolutionError
+
       setChecklist(checklistData)
       setIssueItems(issues)
+      const resolutionMap = (resolutionData || []).reduce((acc, row) => {
+        acc[row.checklist_item_id] = row.resolution_text
+        return acc
+      }, {})
       setResolutions(
         issues.reduce((acc, item) => {
-          acc[item.id] = ''
+          acc[item.id] = resolutionMap[item.id] || ''
           return acc
         }, {})
       )
@@ -64,6 +86,11 @@ export default function ChecklistAlertResolveModal({ alertId, checklistId, onClo
   }
 
   const handleResolve = async () => {
+    if (isResolved) {
+      onClose?.()
+      return
+    }
+
     if (issueItems.length === 0) {
       alert('No issue items found for this checklist.')
       return
@@ -205,22 +232,23 @@ export default function ChecklistAlertResolveModal({ alertId, checklistId, onClo
               </tr>
             </thead>
             <tbody>
-              {issueItems.map((item) => (
-                <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '8px' }}>{item.label}</td>
-                  <td style={{ padding: '8px' }}>{item.status || 'unknown'}</td>
-                  <td style={{ padding: '8px' }}>{item.comments || ''}</td>
-                  <td style={{ padding: '8px' }}>
-                    <input
-                      type="text"
-                      value={resolutions[item.id] || ''}
-                      onChange={(e) => updateResolution(item.id, e.target.value)}
-                      style={{ width: '100%' }}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+        {issueItems.map((item) => (
+          <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
+            <td style={{ padding: '8px' }}>{item.label}</td>
+            <td style={{ padding: '8px' }}>{item.status || 'unknown'}</td>
+            <td style={{ padding: '8px' }}>{item.comments || ''}</td>
+            <td style={{ padding: '8px' }}>
+              <input
+                type="text"
+                value={resolutions[item.id] || ''}
+                onChange={(e) => updateResolution(item.id, e.target.value)}
+                disabled={isResolved}
+                style={{ width: '100%' }}
+              />
+            </td>
+          </tr>
+        ))}
+      </tbody>
           </table>
         )}
 
@@ -232,10 +260,10 @@ export default function ChecklistAlertResolveModal({ alertId, checklistId, onClo
             type="button"
             className="btn btn-primary"
             onClick={handleResolve}
-            disabled={saving || issueItems.length === 0}
+            disabled={saving || issueItems.length === 0 || isResolved}
             style={{ marginLeft: '10px' }}
           >
-            {saving ? 'Resolving...' : 'Resolve Checklist'}
+            {isResolved ? 'Resolved' : saving ? 'Resolving...' : 'Resolve Checklist'}
           </button>
         </div>
       </div>

@@ -298,9 +298,8 @@ export default function UserRequestInbox() {
                       type="button"
                       className="btn btn-secondary"
                       onClick={() => openResolve(alert)}
-                      disabled={alert.is_resolved}
                     >
-                      {alert.is_resolved ? 'Resolved' : 'Resolve'}
+                      {alert.is_resolved ? 'View resolution' : 'Resolve'}
                     </button>
                   </td>
                 </tr>
