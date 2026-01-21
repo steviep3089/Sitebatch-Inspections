@@ -8,6 +8,7 @@ export default function Header({ session }) {
   const [userRole, setUserRole] = useState(null)
   const [pendingChecklists, setPendingChecklists] = useState(0)
   const [pendingRequests, setPendingRequests] = useState(0)
+  const [pendingAlerts, setPendingAlerts] = useState(0)
 
   useEffect(() => {
     checkUserRole()
@@ -61,6 +62,23 @@ export default function Header({ session }) {
     setPendingRequests(count || 0)
   }
 
+  const loadPendingAlerts = async () => {
+    if (!session?.user) return
+
+    const { count, error } = await supabase
+      .from('checklist_alerts')
+      .select('id', { count: 'exact', head: true })
+      .eq('admin_id', session.user.id)
+      .is('is_resolved', false)
+
+    if (error) {
+      console.error('Error loading checklist alerts count:', error)
+      return
+    }
+
+    setPendingAlerts(count || 0)
+  }
+
   // Allow other components (like the inbox or MyChecklists)
   // to push their own view of the current counts into the
   // header so the bell badge always matches the visible lists.
@@ -72,6 +90,9 @@ export default function Header({ session }) {
       }
       if (typeof detail.pendingChecklists === 'number') {
         setPendingChecklists(detail.pendingChecklists)
+      }
+      if (typeof detail.pendingAlerts === 'number') {
+        setPendingAlerts(detail.pendingAlerts)
       }
     }
 
@@ -111,6 +132,7 @@ export default function Header({ session }) {
     if (!session?.user) return
     loadPendingChecklists()
     loadPendingRequests()
+    loadPendingAlerts()
   }, [location.pathname, session?.user])
 
   // Subscribe to checklist changes so the bell count updates
@@ -165,9 +187,29 @@ export default function Header({ session }) {
       )
       .subscribe()
 
+    const alertsChannel = supabase
+      .channel('checklist_alerts_notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'checklist_alerts',
+          filter: `admin_id=eq.${userId}`,
+        },
+        () => {
+          loadPendingAlerts()
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('checklist-alerts-updated'))
+          }
+        }
+      )
+      .subscribe()
+
     return () => {
       supabase.removeChannel(checklistChannel)
       supabase.removeChannel(requestsChannel)
+      supabase.removeChannel(alertsChannel)
     }
   }, [session?.user?.id])
 
@@ -178,7 +220,7 @@ export default function Header({ session }) {
     await supabase.auth.signOut()
   }
 
-  const notificationsTotal = pendingChecklists + pendingRequests
+  const notificationsTotal = pendingChecklists + pendingRequests + pendingAlerts
 
   return (
     <div className="header">

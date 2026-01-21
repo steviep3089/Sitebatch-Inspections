@@ -11,6 +11,9 @@
     },
     "send-item-reminders": {
       "verify_jwt": false
+    },
+    "send-checklist-issue-alert": {
+      "verify_jwt": false
     }
   }
 }

@@ -5,6 +5,7 @@ import MyChecklistDetailModal from './MyChecklistDetailModal'
 export default function UserRequestInbox() {
   const [requests, setRequests] = useState([])
   const [checklists, setChecklists] = useState([])
+  const [checklistAlerts, setChecklistAlerts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [activeChecklistId, setActiveChecklistId] = useState(null)
@@ -78,6 +79,35 @@ export default function UserRequestInbox() {
         setChecklists(checklistData || [])
       }
 
+      const { data: alertData, error: alertError } = await supabase
+        .from('checklist_alerts')
+        .select(`
+          id,
+          created_at,
+          is_resolved,
+          issue_summary,
+          inspection_checklists:checklist_id (
+            id,
+            status,
+            due_date,
+            inspections:inspection_id (
+              id,
+              asset_items (asset_id, name),
+              inspection_types (name)
+            )
+          )
+        `)
+        .eq('admin_id', user.id)
+        .is('is_resolved', false)
+        .order('created_at', { ascending: false })
+
+      if (alertError) {
+        console.error('Error loading checklist alerts:', alertError)
+        setChecklistAlerts([])
+      } else {
+        setChecklistAlerts(alertData || [])
+      }
+
       // Push the exact counts we see in this view up to the
       // header so the bell badge stays in sync.
       if (typeof window !== 'undefined') {
@@ -86,6 +116,7 @@ export default function UserRequestInbox() {
             detail: {
               pendingRequests: enriched.length,
               pendingChecklists: (checklistData || []).length,
+              pendingAlerts: (alertData || []).length,
             },
           })
         )
@@ -115,12 +146,14 @@ export default function UserRequestInbox() {
     if (typeof window !== 'undefined') {
       window.addEventListener('user-requests-updated', handler)
       window.addEventListener('checklists-updated', handler)
+      window.addEventListener('checklist-alerts-updated', handler)
     }
 
     return () => {
       if (typeof window !== 'undefined') {
         window.removeEventListener('user-requests-updated', handler)
         window.removeEventListener('checklists-updated', handler)
+        window.removeEventListener('checklist-alerts-updated', handler)
       }
     }
   }, [])
@@ -143,6 +176,25 @@ export default function UserRequestInbox() {
     } catch (err) {
       console.error('Error marking request as read:', err)
       alert('Error marking request as read. Please try again.')
+    }
+  }
+
+  const markAlertResolved = async (id) => {
+    try {
+      const { error } = await supabase
+        .from('checklist_alerts')
+        .update({ is_resolved: true })
+        .eq('id', id)
+
+      if (error) throw error
+
+      await loadInboxData()
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('checklist-alerts-updated'))
+      }
+    } catch (err) {
+      console.error('Error marking checklist alert as resolved:', err)
+      alert('Error marking alert as resolved. Please try again.')
     }
   }
 
@@ -188,6 +240,64 @@ export default function UserRequestInbox() {
                       onClick={() => markAsRead(req.id)}
                     >
                       Read
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h2 style={{ marginTop: '30px', marginBottom: '15px' }}>Checklists Requiring Your Attention</h2>
+      {checklistAlerts.length === 0 ? (
+        <p>No checklist alerts waiting for you.</p>
+      ) : (
+        <div className="card">
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #ddd' }}>
+                <th style={{ padding: '8px', textAlign: 'left' }}>Asset ID</th>
+                <th style={{ padding: '8px', textAlign: 'left' }}>Asset Name</th>
+                <th style={{ padding: '8px', textAlign: 'left' }}>Inspection Type</th>
+                <th style={{ padding: '8px', textAlign: 'left' }}>Raised</th>
+                <th style={{ padding: '8px', textAlign: 'left' }}>Summary</th>
+                <th style={{ padding: '8px', textAlign: 'left' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {checklistAlerts.map((alert) => (
+                <tr key={alert.id} style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: '8px' }}>
+                    {alert.inspection_checklists?.inspections?.asset_items?.asset_id || 'N/A'}
+                  </td>
+                  <td style={{ padding: '8px' }}>
+                    {alert.inspection_checklists?.inspections?.asset_items?.name || 'N/A'}
+                  </td>
+                  <td style={{ padding: '8px' }}>
+                    {alert.inspection_checklists?.inspections?.inspection_types?.name || 'N/A'}
+                  </td>
+                  <td style={{ padding: '8px' }}>
+                    {alert.created_at ? new Date(alert.created_at).toLocaleString() : 'N/A'}
+                  </td>
+                  <td style={{ padding: '8px' }}>
+                    {alert.issue_summary || 'Checklist completed with issues.'}
+                  </td>
+                  <td style={{ padding: '8px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ marginRight: '8px' }}
+                      onClick={() => setActiveChecklistId(alert.inspection_checklists?.id)}
+                    >
+                      View
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => markAlertResolved(alert.id)}
+                    >
+                      Resolve
                     </button>
                   </td>
                 </tr>
