@@ -6,6 +6,8 @@ export default function MyChecklistDetailModal({ checklistId, onClose, onUpdated
   const [checklist, setChecklist] = useState(null)
   const [items, setItems] = useState([])
   const [saving, setSaving] = useState(false)
+  const [admins, setAdmins] = useState([])
+  const [selectedAdmins, setSelectedAdmins] = useState([])
 
   useEffect(() => {
     if (!checklistId) return
@@ -54,6 +56,28 @@ export default function MyChecklistDetailModal({ checklistId, onClose, onUpdated
     load()
   }, [checklistId])
 
+  useEffect(() => {
+    const loadAdmins = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('id, email, role')
+          .eq('role', 'admin')
+          .order('email', { ascending: true })
+
+        if (error) throw error
+        setAdmins(data || [])
+        setSelectedAdmins([])
+      } catch (error) {
+        console.error('Error loading admins:', error)
+        setAdmins([])
+        setSelectedAdmins([])
+      }
+    }
+
+    loadAdmins()
+  }, [])
+
   const handleItemChange = (id, field, value) => {
     setItems((prev) =>
       prev.map((item) =>
@@ -64,6 +88,12 @@ export default function MyChecklistDetailModal({ checklistId, onClose, onUpdated
             }
           : item
       )
+    )
+  }
+
+  const toggleAdmin = (id) => {
+    setSelectedAdmins((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     )
   }
 
@@ -79,6 +109,26 @@ export default function MyChecklistDetailModal({ checklistId, onClose, onUpdated
 
     if (incomplete.length > 0) {
       alert('All items must be categorised before the inspection checklist can be completed.')
+      return
+    }
+
+    const missingComments = items.filter(
+      (item) =>
+        (item.status === 'defective' || item.status === 'not_available') &&
+        (!item.comments || !item.comments.trim())
+    )
+
+    if (missingComments.length > 0) {
+      alert('Please add comments for all Defective or Not available items.')
+      return
+    }
+
+    const hasIssues = items.some(
+      (item) => item.status === 'defective' || item.status === 'not_available'
+    )
+
+    if (hasIssues && selectedAdmins.length === 0) {
+      alert('Please select at least one admin to notify about checklist issues.')
       return
     }
 
@@ -102,6 +152,21 @@ export default function MyChecklistDetailModal({ checklistId, onClose, onUpdated
           .eq('id', row.id)
 
         if (itemError) throw itemError
+      }
+
+      if (hasIssues) {
+        const { data: alertData, error: alertError } = await supabase.functions.invoke(
+          'send-checklist-issue-alert',
+          {
+            body: {
+              checklist_id: checklistId,
+              admin_ids: selectedAdmins,
+            },
+          }
+        )
+
+        if (alertError) throw alertError
+        if (alertData?.error) throw new Error(alertData.error)
       }
 
       const { error: checklistError } = await supabase
@@ -239,6 +304,41 @@ export default function MyChecklistDetailModal({ checklistId, onClose, onUpdated
               </p>
             )}
           </>
+        )}
+
+        {items.some((item) => item.status === 'defective' || item.status === 'not_available') && (
+          <div
+            style={{
+              background: '#f0f8ff',
+              borderRadius: '6px',
+              padding: '12px',
+              marginTop: '16px',
+            }}
+          >
+            <strong style={{ display: 'block', marginBottom: '6px' }}>Notify Admins</strong>
+            <p style={{ margin: 0, marginBottom: '10px', color: '#555' }}>
+              This checklist has issues that require attention. Select the admins to notify.
+            </p>
+            {admins.length === 0 ? (
+              <p style={{ margin: 0, color: '#777' }}>No admins found.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {admins.map((admin) => {
+                  const selected = selectedAdmins.includes(admin.id)
+                  return (
+                    <label key={admin.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => toggleAdmin(admin.id)}
+                      />
+                      <span>{admin.email}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         )}
 
         <div

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import MyChecklistDetailModal from './MyChecklistDetailModal'
+import ChecklistAlertResolveModal from './ChecklistAlertResolveModal'
 
 export default function UserRequestInbox() {
   const [requests, setRequests] = useState([])
@@ -9,6 +10,7 @@ export default function UserRequestInbox() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [activeChecklistId, setActiveChecklistId] = useState(null)
+  const [activeResolveAlert, setActiveResolveAlert] = useState(null)
 
   const loadInboxData = async () => {
     setLoading(true)
@@ -83,6 +85,7 @@ export default function UserRequestInbox() {
         .from('checklist_alerts')
         .select(`
           id,
+          checklist_id,
           created_at,
           is_resolved,
           issue_summary,
@@ -98,14 +101,17 @@ export default function UserRequestInbox() {
           )
         `)
         .eq('admin_id', user.id)
-        .is('is_resolved', false)
+        .order('is_resolved', { ascending: true })
         .order('created_at', { ascending: false })
 
+      let unresolvedAlerts = 0
       if (alertError) {
         console.error('Error loading checklist alerts:', alertError)
         setChecklistAlerts([])
       } else {
-        setChecklistAlerts(alertData || [])
+        const alerts = alertData || []
+        unresolvedAlerts = alerts.filter((alert) => !alert.is_resolved).length
+        setChecklistAlerts(alerts)
       }
 
       // Push the exact counts we see in this view up to the
@@ -116,7 +122,7 @@ export default function UserRequestInbox() {
             detail: {
               pendingRequests: enriched.length,
               pendingChecklists: (checklistData || []).length,
-              pendingAlerts: (alertData || []).length,
+              pendingAlerts: unresolvedAlerts,
             },
           })
         )
@@ -179,23 +185,9 @@ export default function UserRequestInbox() {
     }
   }
 
-  const markAlertResolved = async (id) => {
-    try {
-      const { error } = await supabase
-        .from('checklist_alerts')
-        .update({ is_resolved: true })
-        .eq('id', id)
-
-      if (error) throw error
-
-      await loadInboxData()
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('checklist-alerts-updated'))
-      }
-    } catch (err) {
-      console.error('Error marking checklist alert as resolved:', err)
-      alert('Error marking alert as resolved. Please try again.')
-    }
+  const openResolve = (alert) => {
+    if (!alert?.id) return
+    setActiveResolveAlert(alert)
   }
 
   if (loading) {
@@ -262,6 +254,7 @@ export default function UserRequestInbox() {
                 <th style={{ padding: '8px', textAlign: 'left' }}>Inspection Type</th>
                 <th style={{ padding: '8px', textAlign: 'left' }}>Raised</th>
                 <th style={{ padding: '8px', textAlign: 'left' }}>Summary</th>
+                <th style={{ padding: '8px', textAlign: 'left' }}>Status</th>
                 <th style={{ padding: '8px', textAlign: 'left' }}>Actions</th>
               </tr>
             </thead>
@@ -284,6 +277,15 @@ export default function UserRequestInbox() {
                     {alert.issue_summary || 'Checklist completed with issues.'}
                   </td>
                   <td style={{ padding: '8px' }}>
+                    <span
+                      className={`status-badge ${
+                        alert.is_resolved ? 'status-compliant' : 'status-due-soon'
+                      }`}
+                    >
+                      {alert.is_resolved ? 'RESOLVED' : 'OPEN'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '8px' }}>
                     <button
                       type="button"
                       className="btn btn-primary"
@@ -295,9 +297,10 @@ export default function UserRequestInbox() {
                     <button
                       type="button"
                       className="btn btn-secondary"
-                      onClick={() => markAlertResolved(alert.id)}
+                      onClick={() => openResolve(alert)}
+                      disabled={alert.is_resolved}
                     >
-                      Resolve
+                      {alert.is_resolved ? 'Resolved' : 'Resolve'}
                     </button>
                   </td>
                 </tr>
@@ -364,6 +367,15 @@ export default function UserRequestInbox() {
           checklistId={activeChecklistId}
           onClose={() => setActiveChecklistId(null)}
           onUpdated={loadInboxData}
+        />
+      )}
+
+      {activeResolveAlert && (
+        <ChecklistAlertResolveModal
+          alertId={activeResolveAlert.id}
+          checklistId={activeResolveAlert.inspection_checklists?.id || activeResolveAlert.checklist_id}
+          onClose={() => setActiveResolveAlert(null)}
+          onResolved={loadInboxData}
         />
       )}
     </div>
