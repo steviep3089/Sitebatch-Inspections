@@ -169,7 +169,9 @@ export default function InspectionItemsAdmin() {
 
     // Validation: Unique Identification and Description are required,
     // and either Capacity must be filled OR N/A must be checked.
-    if (!uniqueId.trim() || !description.trim()) {
+    const normalisedUniqueId = normaliseUniqueId(uniqueId)
+
+    if (!normalisedUniqueId || !description.trim()) {
       alert('Please enter both Unique Identification and Description.')
       return
     }
@@ -213,7 +215,7 @@ export default function InspectionItemsAdmin() {
         .from('inspection_item_templates')
         .update({
           name: description.trim(),
-          unique_id: uniqueId.trim(),
+          unique_id: normalisedUniqueId,
           description: description.trim(),
           capacity: capacityNa ? null : capacity.trim() || null,
           capacity_na: capacityNa,
@@ -271,7 +273,7 @@ export default function InspectionItemsAdmin() {
           // Keep name populated for convenience, but store detailed
           // fields separately so we can use them in checklists later.
           name: description.trim(),
-          unique_id: uniqueId.trim(),
+          unique_id: normalisedUniqueId,
           description: description.trim(),
           capacity: capacityNa ? null : capacity.trim() || null,
           capacity_na: capacityNa,
@@ -372,6 +374,15 @@ export default function InspectionItemsAdmin() {
     return trimmed === 'true' || trimmed === 'yes' || trimmed === 'y' || trimmed === '1'
   }
 
+  const normaliseUniqueId = (value) => {
+    if (!value || typeof value !== 'string') return ''
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/[-_]/g, '')
+      .replace(/\s+/g, '')
+  }
+
   const normaliseDate = (value) => {
     if (!value || typeof value !== 'string') return ''
     const trimmed = value.trim()
@@ -463,7 +474,7 @@ export default function InspectionItemsAdmin() {
           const inspectionTypeRaw = (row[typeIndex] || '').trim()
           const inspectionTypeId = typeMap[inspectionTypeRaw.toLowerCase()] || typeMap[inspectionTypeRaw]
 
-          const uniqueId = (row[uniqueIndex] || '').trim()
+          const uniqueId = normaliseUniqueId(row[uniqueIndex] || '')
           const description = (row[descriptionIndex] || '').trim()
 
           if (!inspectionTypeId || !uniqueId || !description) {
@@ -533,7 +544,7 @@ export default function InspectionItemsAdmin() {
         }
 
         const existingMap = (existingTemplates || []).reduce((acc, item) => {
-          const key = `${item.inspection_type_id}::${(item.unique_id || '').toLowerCase()}`
+          const key = `${item.inspection_type_id}::${normaliseUniqueId(item.unique_id || '').toLowerCase()}`
           acc[key] = item
           return acc
         }, {})
@@ -542,7 +553,7 @@ export default function InspectionItemsAdmin() {
         const insertRows = []
 
         rowsToCompare.forEach((row) => {
-          const key = `${row.inspectionTypeId}::${row.uniqueId.toLowerCase()}`
+          const key = `${row.inspectionTypeId}::${normaliseUniqueId(row.uniqueId).toLowerCase()}`
           const existing = existingMap[key]
           if (!existing) {
             insertRows.push(row)
@@ -879,6 +890,9 @@ export default function InspectionItemsAdmin() {
                       <div style={{ fontWeight: 600 }}>{row.uniqueId}</div>
                       <div style={{ fontSize: '0.85rem', color: '#666' }}>
                         {row.inspectionTypeLabel || row.inspectionTypeId}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#9aa0a6' }}>
+                        Match key: {normaliseUniqueId(row.uniqueId)}
                       </div>
                     </td>
                     <td style={{ padding: '8px' }}>
