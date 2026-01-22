@@ -20,6 +20,11 @@ export default function InspectionItemsAdmin() {
   const [importFile, setImportFile] = useState(null)
   const [importStatus, setImportStatus] = useState('')
   const [importErrors, setImportErrors] = useState([])
+  const [importPreview, setImportPreview] = useState([])
+  const [showPreview, setShowPreview] = useState(false)
+  const [pendingImportRows, setPendingImportRows] = useState([])
+  const [pendingInsertRows, setPendingInsertRows] = useState([])
+  const [overwriteSelections, setOverwriteSelections] = useState({})
 
   // Helper to sort IDs like "BX22 LB3", "BX22 LB4", "BX22 LB14" numerically
   const sortItemsByUniqueId = (itemsToSort, direction = 'asc') => {
@@ -399,6 +404,11 @@ export default function InspectionItemsAdmin() {
 
     setImportStatus('Parsing CSV...')
     setImportErrors([])
+    setImportPreview([])
+    setShowPreview(false)
+    setPendingImportRows([])
+    setPendingInsertRows([])
+    setOverwriteSelections({})
 
     const reader = new FileReader()
     reader.onload = async () => {
@@ -444,7 +454,8 @@ export default function InspectionItemsAdmin() {
         }, {})
 
         const errors = []
-        let insertedCount = 0
+        const rowsToInsert = []
+        const rowsToCompare = []
 
         for (let i = 0; i < dataRows.length; i++) {
           const row = dataRows[i]
@@ -481,47 +492,92 @@ export default function InspectionItemsAdmin() {
             continue
           }
 
-          const { data: inserted, error: insertError } = await supabase
-            .from('inspection_item_templates')
-            .insert({
-              inspection_type_id: inspectionTypeId,
-              name: description,
-              unique_id: uniqueId,
-              description,
-              capacity: capacityNaValue ? null : capacity || null,
-              capacity_na: capacityNaValue,
-              expiry_date: expiryNaValue ? null : expiryDate || null,
-              expiry_na: expiryNaValue,
-              sort_order: sortOrder,
-              is_active: isActive,
-            })
-            .select()
-            .single()
-
-          if (insertError) {
-            errors.push(`Row ${rowNumber}: ${insertError.message}`)
-            continue
-          }
-
-          if (assetIds.length > 0) {
-            const links = assetIds.map((assetId) => ({
-              template_id: inserted.id,
-              asset_id: assetId,
-            }))
-            const { error: linkError } = await supabase
-              .from('inspection_item_template_assets')
-              .insert(links)
-
-            if (linkError) {
-              errors.push(`Row ${rowNumber}: failed linking assets - ${linkError.message}`)
-              continue
-            }
-          }
-
-          insertedCount += 1
+          rowsToCompare.push({
+            rowNumber,
+            inspectionTypeId,
+            inspectionTypeLabel: inspectionTypeRaw,
+            uniqueId,
+            description,
+            capacity,
+            capacity_na: capacityNaValue,
+            expiry_date: expiryDate,
+            expiry_na: expiryNaValue,
+            assetIds,
+            assetCodes,
+            sort_order: sortOrder,
+            is_active: isActive,
+          })
         }
 
-        setImportErrors(errors)
+        if (errors.length > 0) {
+          setImportErrors(errors)
+        }
+
+        if (rowsToCompare.length === 0) {
+          setImportStatus('No valid rows found to import.')
+          return
+        }
+
+        const uniqueTypeIds = Array.from(new Set(rowsToCompare.map((row) => row.inspectionTypeId)))
+        const uniqueIds = Array.from(new Set(rowsToCompare.map((row) => row.uniqueId)))
+
+        const { data: existingTemplates, error: existingError } = await supabase
+          .from('inspection_item_templates')
+          .select('id, inspection_type_id, unique_id, description, capacity, capacity_na, expiry_date, expiry_na, inspection_item_template_assets(asset_id)')
+          .in('inspection_type_id', uniqueTypeIds)
+          .in('unique_id', uniqueIds)
+
+        if (existingError) {
+          setImportStatus(`Error checking existing items: ${existingError.message}`)
+          return
+        }
+
+        const existingMap = (existingTemplates || []).reduce((acc, item) => {
+          const key = `${item.inspection_type_id}::${(item.unique_id || '').toLowerCase()}`
+          acc[key] = item
+          return acc
+        }, {})
+
+        const previewRows = []
+        const insertRows = []
+
+        rowsToCompare.forEach((row) => {
+          const key = `${row.inspectionTypeId}::${row.uniqueId.toLowerCase()}`
+          const existing = existingMap[key]
+          if (!existing) {
+            insertRows.push(row)
+            return
+          }
+
+          const existingAssets = (existing.inspection_item_template_assets || []).map((asset) => asset.asset_id)
+          const existingAssetCodes = existingAssets
+            .map((id) => assets.find((asset) => asset.id === id)?.asset_id || id)
+            .filter(Boolean)
+
+          previewRows.push({
+            ...row,
+            existing,
+            existingAssetCodes,
+            existingAssets,
+          })
+        })
+
+        if (previewRows.length > 0) {
+          setImportPreview(previewRows)
+          setPendingImportRows(previewRows)
+          setPendingInsertRows(insertRows)
+          setOverwriteSelections(
+            previewRows.reduce((acc, row) => {
+              acc[row.rowNumber] = false
+              return acc
+            }, {})
+          )
+          setShowPreview(true)
+          setImportStatus('Review duplicates before importing.')
+          return
+        }
+
+        const insertedCount = await insertRowsFromCsv(insertRows)
         setImportStatus(`Import finished. ${insertedCount} row(s) inserted.`)
         await loadItems()
       } catch (error) {
@@ -535,6 +591,123 @@ export default function InspectionItemsAdmin() {
     }
 
     reader.readAsText(importFile)
+  }
+
+  const insertRowsFromCsv = async (rows) => {
+    let insertedCount = 0
+    for (const row of rows) {
+      const { data: inserted, error: insertError } = await supabase
+        .from('inspection_item_templates')
+        .insert({
+          inspection_type_id: row.inspectionTypeId,
+          name: row.description,
+          unique_id: row.uniqueId,
+          description: row.description,
+          capacity: row.capacity_na ? null : row.capacity || null,
+          capacity_na: row.capacity_na,
+          expiry_date: row.expiry_na ? null : row.expiry_date || null,
+          expiry_na: row.expiry_na,
+          sort_order: row.sort_order || 0,
+          is_active: row.is_active !== false,
+        })
+        .select()
+        .single()
+
+      if (insertError) {
+        setImportErrors((prev) => [...prev, `Row ${row.rowNumber}: ${insertError.message}`])
+        continue
+      }
+
+      if (row.assetIds.length > 0) {
+        const links = row.assetIds.map((assetId) => ({
+          template_id: inserted.id,
+          asset_id: assetId,
+        }))
+        const { error: linkError } = await supabase
+          .from('inspection_item_template_assets')
+          .insert(links)
+
+        if (linkError) {
+          setImportErrors((prev) => [...prev, `Row ${row.rowNumber}: failed linking assets - ${linkError.message}`])
+          continue
+        }
+      }
+
+      insertedCount += 1
+    }
+    return insertedCount
+  }
+
+  const handleConfirmOverwrite = async () => {
+    setImportStatus('Applying selected updates...')
+    setShowPreview(false)
+
+    const overwriteRows = pendingImportRows.filter((row) => overwriteSelections[row.rowNumber])
+    const skippedRows = pendingImportRows.filter((row) => !overwriteSelections[row.rowNumber])
+
+    if (overwriteRows.length === 0 && pendingInsertRows.length === 0) {
+      setImportStatus('No rows selected for import.')
+      return
+    }
+
+    let updatedCount = 0
+
+    for (const row of overwriteRows) {
+      const existing = row.existing
+      const { error: updateError } = await supabase
+        .from('inspection_item_templates')
+        .update({
+          description: row.description,
+          name: row.description,
+          capacity: row.capacity_na ? null : row.capacity || null,
+          capacity_na: row.capacity_na,
+          expiry_date: row.expiry_na ? null : row.expiry_date || null,
+          expiry_na: row.expiry_na,
+          sort_order: row.sort_order || 0,
+          is_active: row.is_active !== false,
+        })
+        .eq('id', existing.id)
+
+      if (updateError) {
+        setImportErrors((prev) => [...prev, `Row ${row.rowNumber}: ${updateError.message}`])
+        continue
+      }
+
+      const { error: clearError } = await supabase
+        .from('inspection_item_template_assets')
+        .delete()
+        .eq('template_id', existing.id)
+
+      if (clearError) {
+        setImportErrors((prev) => [...prev, `Row ${row.rowNumber}: failed clearing assets - ${clearError.message}`])
+        continue
+      }
+
+      if (row.assetIds.length > 0) {
+        const links = row.assetIds.map((assetId) => ({
+          template_id: existing.id,
+          asset_id: assetId,
+        }))
+        const { error: linkError } = await supabase
+          .from('inspection_item_template_assets')
+          .insert(links)
+
+        if (linkError) {
+          setImportErrors((prev) => [...prev, `Row ${row.rowNumber}: failed linking assets - ${linkError.message}`])
+          continue
+        }
+      }
+
+      updatedCount += 1
+    }
+
+    const insertedCount = await insertRowsFromCsv(pendingInsertRows)
+    const skippedCount = skippedRows.length
+
+    setImportStatus(
+      `Import finished. ${insertedCount} inserted, ${updatedCount} updated, ${skippedCount} skipped.`
+    )
+    await loadItems()
   }
 
   const handleDeleteItem = async (id) => {
@@ -618,6 +791,149 @@ export default function InspectionItemsAdmin() {
           </div>
         )}
       </div>
+
+      {showPreview && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1300,
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '8px',
+              padding: '20px',
+              maxWidth: '960px',
+              width: '95%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>Duplicate Items Found</h3>
+            <p style={{ color: '#555' }}>
+              Review the differences and choose which rows to overwrite. Unchecked rows will be skipped.
+            </p>
+            <div style={{ marginBottom: '10px', display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() =>
+                  setOverwriteSelections((prev) =>
+                    Object.keys(prev).reduce((acc, key) => {
+                      acc[key] = true
+                      return acc
+                    }, {})
+                  )
+                }
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() =>
+                  setOverwriteSelections((prev) =>
+                    Object.keys(prev).reduce((acc, key) => {
+                      acc[key] = false
+                      return acc
+                    }, {})
+                  )
+                }
+              >
+                Clear all
+              </button>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #ddd' }}>
+                  <th style={{ textAlign: 'left', padding: '8px' }}>Overwrite</th>
+                  <th style={{ textAlign: 'left', padding: '8px' }}>Item</th>
+                  <th style={{ textAlign: 'left', padding: '8px' }}>Description</th>
+                  <th style={{ textAlign: 'left', padding: '8px' }}>Capacity</th>
+                  <th style={{ textAlign: 'left', padding: '8px' }}>Expiry</th>
+                  <th style={{ textAlign: 'left', padding: '8px' }}>Assets</th>
+                </tr>
+              </thead>
+              <tbody>
+                {importPreview.map((row) => (
+                  <tr key={row.rowNumber} style={{ borderBottom: '1px solid #eee' }}>
+                    <td style={{ padding: '8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={overwriteSelections[row.rowNumber] || false}
+                        onChange={() =>
+                          setOverwriteSelections((prev) => ({
+                            ...prev,
+                            [row.rowNumber]: !prev[row.rowNumber],
+                          }))
+                        }
+                      />
+                    </td>
+                    <td style={{ padding: '8px' }}>
+                      <div style={{ fontWeight: 600 }}>{row.uniqueId}</div>
+                      <div style={{ fontSize: '0.85rem', color: '#666' }}>
+                        {row.inspectionTypeLabel || row.inspectionTypeId}
+                      </div>
+                    </td>
+                    <td style={{ padding: '8px' }}>
+                      <div style={{ fontSize: '0.85rem', color: '#777' }}>
+                        Current: {row.existing.description || '-'}
+                      </div>
+                      <div>New: {row.description || '-'}</div>
+                    </td>
+                    <td style={{ padding: '8px' }}>
+                      <div style={{ fontSize: '0.85rem', color: '#777' }}>
+                        Current: {row.existing.capacity_na ? 'N/A' : row.existing.capacity || '-'}
+                      </div>
+                      <div>
+                        New: {row.capacity_na ? 'N/A' : row.capacity || '-'}
+                      </div>
+                    </td>
+                    <td style={{ padding: '8px' }}>
+                      <div style={{ fontSize: '0.85rem', color: '#777' }}>
+                        Current: {row.existing.expiry_na ? 'N/A' : row.existing.expiry_date || '-'}
+                      </div>
+                      <div>
+                        New: {row.expiry_na ? 'N/A' : row.expiry_date || '-'}
+                      </div>
+                    </td>
+                    <td style={{ padding: '8px' }}>
+                      <div style={{ fontSize: '0.85rem', color: '#777' }}>
+                        Current: {row.existingAssetCodes.length > 0 ? row.existingAssetCodes.join(', ') : 'None'}
+                      </div>
+                      <div>
+                        New: {row.assetCodes.length > 0 ? row.assetCodes.join(', ') : 'None'}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setShowPreview(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleConfirmOverwrite}
+              >
+                Apply Selected
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div
         style={{
