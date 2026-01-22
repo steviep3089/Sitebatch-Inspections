@@ -751,14 +751,6 @@ export default function InspectionItemsAdmin() {
 
       <div className="card" style={{ marginBottom: '20px' }}>
         <h3 style={{ marginBottom: '10px' }}>Bulk CSV Upload</h3>
-        <p style={{ marginBottom: '10px', color: '#555' }}>
-          Upload a CSV with columns: inspection_type, unique_id, description,
-          capacity, capacity_na, expiry_date, expiry_na, assets, sort_order, is_active.
-          Use the inspection type name (or ID). For assets, separate asset IDs with
-          a "|" character (e.g. BX22|BX23). Dates can be DD-MM-YYYY or YYYY-MM-DD.
-          Only inspection_type, unique_id,
-          and description are required.
-        </p>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             type="button"
