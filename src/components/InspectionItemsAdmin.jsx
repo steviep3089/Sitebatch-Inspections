@@ -676,6 +676,7 @@ export default function InspectionItemsAdmin() {
       const { error: updateError } = await supabase
         .from('inspection_item_templates')
         .update({
+          unique_id: row.uniqueId,
           description: row.description,
           name: row.description,
           capacity: row.capacity_na ? null : row.capacity || null,
