@@ -479,7 +479,9 @@ export default function InspectionItemsAdmin() {
           const inspectionTypeRaw = (row[typeIndex] || '').trim()
           const inspectionTypeId = typeMap[inspectionTypeRaw.toLowerCase()] || typeMap[inspectionTypeRaw]
 
-          const uniqueId = normaliseUniqueId(row[uniqueIndex] || '')
+          const uniqueIdRaw = (row[uniqueIndex] || '').trim()
+          const uniqueId = normaliseUniqueIdForSave(uniqueIdRaw)
+          const matchKey = normaliseUniqueId(uniqueIdRaw)
           const description = (row[descriptionIndex] || '').trim()
 
           if (!inspectionTypeId || !uniqueId || !description) {
@@ -513,6 +515,7 @@ export default function InspectionItemsAdmin() {
             inspectionTypeId,
             inspectionTypeLabel: inspectionTypeRaw,
             uniqueId,
+            matchKey,
             description,
             capacity,
             capacity_na: capacityNaValue,
@@ -535,13 +538,13 @@ export default function InspectionItemsAdmin() {
         }
 
         const uniqueTypeIds = Array.from(new Set(rowsToCompare.map((row) => row.inspectionTypeId)))
-        const uniqueIds = Array.from(new Set(rowsToCompare.map((row) => row.uniqueId)))
 
         const { data: existingTemplates, error: existingError } = await supabase
           .from('inspection_item_templates')
-          .select('id, inspection_type_id, unique_id, description, capacity, capacity_na, expiry_date, expiry_na, inspection_item_template_assets(asset_id)')
+          .select(
+            'id, inspection_type_id, unique_id, description, capacity, capacity_na, expiry_date, expiry_na, inspection_item_template_assets(asset_id)'
+          )
           .in('inspection_type_id', uniqueTypeIds)
-          .in('unique_id', uniqueIds)
 
         if (existingError) {
           setImportStatus(`Error checking existing items: ${existingError.message}`)
@@ -549,7 +552,7 @@ export default function InspectionItemsAdmin() {
         }
 
         const existingMap = (existingTemplates || []).reduce((acc, item) => {
-          const key = `${item.inspection_type_id}::${normaliseUniqueId(item.unique_id || '').toLowerCase()}`
+          const key = `${item.inspection_type_id}::${normaliseUniqueId(item.unique_id || '')}`
           acc[key] = item
           return acc
         }, {})
@@ -558,7 +561,7 @@ export default function InspectionItemsAdmin() {
         const insertRows = []
 
         rowsToCompare.forEach((row) => {
-          const key = `${row.inspectionTypeId}::${normaliseUniqueId(row.uniqueId).toLowerCase()}`
+          const key = `${row.inspectionTypeId}::${row.matchKey}`
           const existing = existingMap[key]
           if (!existing) {
             insertRows.push(row)
