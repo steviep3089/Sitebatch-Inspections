@@ -100,7 +100,6 @@ export default function Dashboard() {
         .gt('expiry_date', thirtyDaysFromNow)
         .lte('expiry_date', ninetyDaysFromNow)
         .order('expiry_date', { ascending: true })
-        .limit(10)
 
       setStats({
         totalAssets,
@@ -385,32 +384,39 @@ export default function Dashboard() {
 
       {selectedView === 'dueSoonItems' && (
         <div className="card">
-          <h3 style={{ marginBottom: '15px' }}>Upcoming Items (30-90 days)</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '15px' }}>
+            <h3 style={{ margin: 0 }}>Upcoming Items (30-90 days)</h3>
+            <span style={{ color: '#666', fontSize: '0.9rem' }}>
+              Total: {upcomingItems.length}
+            </span>
+          </div>
           {upcomingItems.length === 0 ? (
             <p>No upcoming items found.</p>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #ddd' }}>
-                  <th style={{ textAlign: 'left', padding: '10px' }}>Unique ID</th>
-                  <th style={{ textAlign: 'left', padding: '10px' }}>Description</th>
-                  <th style={{ textAlign: 'left', padding: '10px' }}>Expiry Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {upcomingItems.map((item) => (
-                  <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
-                    <td style={{ padding: '10px' }}>{item.unique_id || ''}</td>
-                    <td style={{ padding: '10px' }}>{item.description || ''}</td>
-                    <td style={{ padding: '10px' }}>
-                      {item.expiry_date
-                        ? new Date(item.expiry_date).toLocaleDateString('en-GB')
-                        : ''}
-                    </td>
+            <div style={{ maxHeight: '360px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '6px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #ddd' }}>
+                    <th style={{ textAlign: 'left', padding: '10px', background: '#fafafa', position: 'sticky', top: 0 }}>Unique ID</th>
+                    <th style={{ textAlign: 'left', padding: '10px', background: '#fafafa', position: 'sticky', top: 0 }}>Description</th>
+                    <th style={{ textAlign: 'left', padding: '10px', background: '#fafafa', position: 'sticky', top: 0 }}>Expiry Date</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {upcomingItems.map((item) => (
+                    <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
+                      <td style={{ padding: '10px' }}>{item.unique_id || ''}</td>
+                      <td style={{ padding: '10px' }}>{item.description || ''}</td>
+                      <td style={{ padding: '10px' }}>
+                        {item.expiry_date
+                          ? new Date(item.expiry_date).toLocaleDateString('en-GB')
+                          : ''}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
