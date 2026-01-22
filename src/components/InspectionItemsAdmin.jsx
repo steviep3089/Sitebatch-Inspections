@@ -17,6 +17,9 @@ export default function InspectionItemsAdmin() {
   const [expiryNa, setExpiryNa] = useState(false)
   const [editingItemId, setEditingItemId] = useState(null)
   const [sortDirection, setSortDirection] = useState('asc') // asc | desc
+  const [importFile, setImportFile] = useState(null)
+  const [importStatus, setImportStatus] = useState('')
+  const [importErrors, setImportErrors] = useState([])
 
   // Helper to sort IDs like "BX22 LB3", "BX22 LB4", "BX22 LB14" numerically
   const sortItemsByUniqueId = (itemsToSort, direction = 'asc') => {
@@ -81,6 +84,46 @@ export default function InspectionItemsAdmin() {
     loadLookups()
   }, [])
 
+  const loadItems = async () => {
+    // Require at least one filter (asset or inspection type), but
+    // allow "All" for either to show wider sets.
+    if (!selectedTypeId && !selectedAssetId) {
+      return
+    }
+
+    let query = supabase
+      .from('inspection_item_templates')
+      .select('*, inspection_item_template_assets(asset_id)')
+
+    if (selectedTypeId && selectedTypeId !== 'all') {
+      query = query.eq('inspection_type_id', selectedTypeId)
+    }
+
+    query = query.order('sort_order', { ascending: true })
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('Error loading inspection item templates:', error)
+      setItems([])
+    } else {
+      const loaded = (data || []).map((item) => ({
+        ...item,
+        associatedAssetIds: (item.inspection_item_template_assets || []).map((row) => row.asset_id),
+      }))
+      const filtered =
+        selectedAssetId && selectedAssetId !== 'all'
+          ? loaded.filter(
+              (item) =>
+                item.associatedAssetIds.length === 0 ||
+                item.associatedAssetIds.includes(selectedAssetId)
+            )
+          : loaded
+      // Default sort using natural numeric order in the ID
+      setItems(sortItemsByUniqueId(filtered, sortDirection))
+    }
+  }
+
   useEffect(() => {
     // Reset current items and edit state when selection changes
     setItems([])
@@ -92,46 +135,6 @@ export default function InspectionItemsAdmin() {
     setExpiryDate('')
     setExpiryNa(false)
     setAssociatedAssetIds([])
-
-    const loadItems = async () => {
-      // Require at least one filter (asset or inspection type), but
-      // allow "All" for either to show wider sets.
-      if (!selectedTypeId && !selectedAssetId) {
-        return
-      }
-
-      let query = supabase
-        .from('inspection_item_templates')
-        .select('*, inspection_item_template_assets(asset_id)')
-
-      if (selectedTypeId && selectedTypeId !== 'all') {
-        query = query.eq('inspection_type_id', selectedTypeId)
-      }
-
-      query = query.order('sort_order', { ascending: true })
-
-      const { data, error } = await query
-
-      if (error) {
-        console.error('Error loading inspection item templates:', error)
-        setItems([])
-      } else {
-        const loaded = (data || []).map((item) => ({
-          ...item,
-          associatedAssetIds: (item.inspection_item_template_assets || []).map((row) => row.asset_id),
-        }))
-        const filtered =
-          selectedAssetId && selectedAssetId !== 'all'
-            ? loaded.filter(
-                (item) =>
-                  item.associatedAssetIds.length === 0 ||
-                  item.associatedAssetIds.includes(selectedAssetId)
-              )
-            : loaded
-        // Default sort using natural numeric order in the ID
-        setItems(sortItemsByUniqueId(filtered, sortDirection))
-      }
-    }
 
     loadItems()
   }, [selectedTypeId, selectedAssetId])
@@ -309,6 +312,223 @@ export default function InspectionItemsAdmin() {
     setAssociatedAssetIds([])
   }
 
+  const parseCsv = (text) => {
+    const rows = []
+    let current = ''
+    let row = []
+    let inQuotes = false
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i]
+      const next = text[i + 1]
+
+      if (char === '"' && next === '"') {
+        current += '"'
+        i++
+        continue
+      }
+
+      if (char === '"') {
+        inQuotes = !inQuotes
+        continue
+      }
+
+      if (char === ',' && !inQuotes) {
+        row.push(current)
+        current = ''
+        continue
+      }
+
+      if ((char === '\n' || char === '\r') && !inQuotes) {
+        if (char === '\r' && next === '\n') i++
+        row.push(current)
+        current = ''
+        if (row.length > 1 || row[0] !== '') {
+          rows.push(row)
+        }
+        row = []
+        continue
+      }
+
+      current += char
+    }
+
+    if (current.length > 0 || row.length > 0) {
+      row.push(current)
+      rows.push(row)
+    }
+
+    return rows
+  }
+
+  const toBool = (value) => {
+    if (typeof value !== 'string') return false
+    const trimmed = value.trim().toLowerCase()
+    return trimmed === 'true' || trimmed === 'yes' || trimmed === 'y' || trimmed === '1'
+  }
+
+  const normaliseDate = (value) => {
+    if (!value || typeof value !== 'string') return ''
+    const trimmed = value.trim()
+    if (!trimmed) return ''
+
+    const match = trimmed.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/)
+    if (match) {
+      const day = match[1].padStart(2, '0')
+      const month = match[2].padStart(2, '0')
+      const year = match[3]
+      return `${year}-${month}-${day}`
+    }
+
+    return trimmed
+  }
+
+  const handleImportCsv = async () => {
+    if (!importFile) {
+      setImportStatus('Please select a CSV file first.')
+      return
+    }
+
+    setImportStatus('Parsing CSV...')
+    setImportErrors([])
+
+    const reader = new FileReader()
+    reader.onload = async () => {
+      try {
+        const text = reader.result || ''
+        const rows = parseCsv(String(text))
+        if (rows.length < 2) {
+          setImportStatus('CSV must include a header row and at least one data row.')
+          return
+        }
+
+        const headers = rows[0].map((h) => (h || '').trim().toLowerCase())
+        const dataRows = rows.slice(1)
+
+        const indexOf = (name) => headers.indexOf(name)
+
+        const typeIndex = indexOf('inspection_type')
+        const uniqueIndex = indexOf('unique_id')
+        const descriptionIndex = indexOf('description')
+        const capacityIndex = indexOf('capacity')
+        const capacityNaIndex = indexOf('capacity_na')
+        const expiryIndex = indexOf('expiry_date')
+        const expiryNaIndex = indexOf('expiry_na')
+        const assetsIndex = indexOf('assets')
+        const sortIndex = indexOf('sort_order')
+        const activeIndex = indexOf('is_active')
+
+        if (typeIndex === -1 || uniqueIndex === -1 || descriptionIndex === -1) {
+          setImportStatus('CSV must include inspection_type, unique_id, and description columns.')
+          return
+        }
+
+        const typeMap = (inspectionTypes || []).reduce((acc, type) => {
+          acc[(type.name || '').trim().toLowerCase()] = type.id
+          acc[type.id] = type.id
+          return acc
+        }, {})
+
+        const assetMap = (assets || []).reduce((acc, asset) => {
+          acc[(asset.asset_id || '').trim().toLowerCase()] = asset.id
+          acc[asset.id] = asset.id
+          return acc
+        }, {})
+
+        const errors = []
+        let insertedCount = 0
+
+        for (let i = 0; i < dataRows.length; i++) {
+          const row = dataRows[i]
+          const rowNumber = i + 2
+          const inspectionTypeRaw = (row[typeIndex] || '').trim()
+          const inspectionTypeId = typeMap[inspectionTypeRaw.toLowerCase()] || typeMap[inspectionTypeRaw]
+
+          const uniqueId = (row[uniqueIndex] || '').trim()
+          const description = (row[descriptionIndex] || '').trim()
+
+          if (!inspectionTypeId || !uniqueId || !description) {
+            errors.push(`Row ${rowNumber}: missing inspection_type, unique_id, or description`)
+            continue
+          }
+
+          const capacity = capacityIndex !== -1 ? (row[capacityIndex] || '').trim() : ''
+          const capacityNaValue = capacityNaIndex !== -1 ? toBool(row[capacityNaIndex]) : false
+          const expiryDate = expiryIndex !== -1 ? normaliseDate(row[expiryIndex] || '') : ''
+          const expiryNaValue = expiryNaIndex !== -1 ? toBool(row[expiryNaIndex]) : false
+          const sortOrder = sortIndex !== -1 ? parseInt(row[sortIndex] || '0', 10) || 0 : 0
+          const isActive = activeIndex !== -1 ? toBool(row[activeIndex]) : true
+
+          const assetsRaw = assetsIndex !== -1 ? (row[assetsIndex] || '').trim() : ''
+          const assetCodes = assetsRaw
+            ? assetsRaw.split('|').map((part) => part.trim()).filter(Boolean)
+            : []
+
+          const assetIds = assetCodes
+            .map((code) => assetMap[code.toLowerCase()] || assetMap[code])
+            .filter(Boolean)
+
+          if (assetCodes.length > 0 && assetIds.length === 0) {
+            errors.push(`Row ${rowNumber}: assets "${assetsRaw}" not matched to asset IDs`)
+            continue
+          }
+
+          const { data: inserted, error: insertError } = await supabase
+            .from('inspection_item_templates')
+            .insert({
+              inspection_type_id: inspectionTypeId,
+              name: description,
+              unique_id: uniqueId,
+              description,
+              capacity: capacityNaValue ? null : capacity || null,
+              capacity_na: capacityNaValue,
+              expiry_date: expiryNaValue ? null : expiryDate || null,
+              expiry_na: expiryNaValue,
+              sort_order: sortOrder,
+              is_active: isActive,
+            })
+            .select()
+            .single()
+
+          if (insertError) {
+            errors.push(`Row ${rowNumber}: ${insertError.message}`)
+            continue
+          }
+
+          if (assetIds.length > 0) {
+            const links = assetIds.map((assetId) => ({
+              template_id: inserted.id,
+              asset_id: assetId,
+            }))
+            const { error: linkError } = await supabase
+              .from('inspection_item_template_assets')
+              .insert(links)
+
+            if (linkError) {
+              errors.push(`Row ${rowNumber}: failed linking assets - ${linkError.message}`)
+              continue
+            }
+          }
+
+          insertedCount += 1
+        }
+
+        setImportErrors(errors)
+        setImportStatus(`Import finished. ${insertedCount} row(s) inserted.`)
+        await loadItems()
+      } catch (error) {
+        console.error('CSV import error:', error)
+        setImportStatus('Error importing CSV file.')
+      }
+    }
+
+    reader.onerror = () => {
+      setImportStatus('Could not read the CSV file.')
+    }
+
+    reader.readAsText(importFile)
+  }
+
   const handleDeleteItem = async (id) => {
     if (!window.confirm('Delete this item from the checklist template?')) return
 
@@ -336,6 +556,60 @@ export default function InspectionItemsAdmin() {
         Choose an asset and inspection type to filter results. Use the
         Associated Assets list when creating or editing items.
       </p>
+
+      <div className="card" style={{ marginBottom: '20px' }}>
+        <h3 style={{ marginBottom: '10px' }}>Bulk CSV Upload</h3>
+        <p style={{ marginBottom: '10px', color: '#555' }}>
+          Upload a CSV with columns: inspection_type, unique_id, description,
+          capacity, capacity_na, expiry_date, expiry_na, assets, sort_order, is_active.
+          Use the inspection type name (or ID). For assets, separate asset IDs with
+          a "|" character (e.g. BX22|BX23). Dates can be DD-MM-YYYY or YYYY-MM-DD.
+          Only inspection_type, unique_id,
+          and description are required.
+        </p>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              const sample = [
+                'inspection_type,unique_id,description,capacity,capacity_na,expiry_date,expiry_na,assets,sort_order,is_active',
+                'Annual Statutory Inspection,BX22 LB1,Anchor bolt check,25,false,31-12-2026,false,BX22|BX23,1,true',
+              ].join('\n')
+              const blob = new Blob([sample], { type: 'text/csv;charset=utf-8;' })
+              const url = URL.createObjectURL(blob)
+              const link = document.createElement('a')
+              link.href = url
+              link.download = 'inspection-item-templates-template.csv'
+              link.click()
+              URL.revokeObjectURL(url)
+            }}
+          >
+            Download CSV template
+          </button>
+          <input
+            type="file"
+            accept=".csv"
+            onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+          />
+          <button type="button" className="btn btn-primary" onClick={handleImportCsv}>
+            Import CSV
+          </button>
+          {importStatus && (
+            <span style={{ color: '#555' }}>{importStatus}</span>
+          )}
+        </div>
+        {importErrors.length > 0 && (
+          <div style={{ marginTop: '10px', color: '#c53030' }}>
+            <strong>Import issues:</strong>
+            <ul>
+              {importErrors.map((error, index) => (
+                <li key={`${error}-${index}`}>{error}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
 
       <div
         style={{
