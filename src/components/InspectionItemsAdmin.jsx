@@ -372,11 +372,19 @@ export default function InspectionItemsAdmin() {
     const trimmed = value.trim()
     if (!trimmed) return ''
 
-    const match = trimmed.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/)
-    if (match) {
-      const day = match[1].padStart(2, '0')
-      const month = match[2].padStart(2, '0')
-      const year = match[3]
+    const matchDash = trimmed.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/)
+    if (matchDash) {
+      const day = matchDash[1].padStart(2, '0')
+      const month = matchDash[2].padStart(2, '0')
+      const year = matchDash[3]
+      return `${year}-${month}-${day}`
+    }
+
+    const matchSlash = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+    if (matchSlash) {
+      const day = matchSlash[1].padStart(2, '0')
+      const month = matchSlash[2].padStart(2, '0')
+      const year = matchSlash[3]
       return `${year}-${month}-${day}`
     }
 
