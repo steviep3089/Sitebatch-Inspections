@@ -169,7 +169,7 @@ export default function InspectionItemsAdmin() {
 
     // Validation: Unique Identification and Description are required,
     // and either Capacity must be filled OR N/A must be checked.
-    const normalisedUniqueId = normaliseUniqueId(uniqueId)
+    const normalisedUniqueId = normaliseUniqueIdForSave(uniqueId)
 
     if (!normalisedUniqueId || !description.trim()) {
       alert('Please enter both Unique Identification and Description.')
@@ -381,6 +381,11 @@ export default function InspectionItemsAdmin() {
       .toLowerCase()
       .replace(/[-_]/g, '')
       .replace(/\s+/g, '')
+  }
+
+  const normaliseUniqueIdForSave = (value) => {
+    if (!value || typeof value !== 'string') return ''
+    return value.trim().replace(/\s+/g, ' ')
   }
 
   const normaliseDate = (value) => {
