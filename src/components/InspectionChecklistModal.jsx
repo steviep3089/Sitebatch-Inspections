@@ -119,10 +119,14 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
         .eq('is_active', true)
 
       if (selectedTypeId && selectedTypeId !== 'all') {
+        const normaliseTypeName = (value) =>
+          (value || '').trim().toLowerCase().replace(/\s+/g, ' ')
+
         const selectedTypeName = inspectionTypes.find((type) => type.id === selectedTypeId)?.name
-        const matchingTypeIds = selectedTypeName
+        const selectedTypeKey = normaliseTypeName(selectedTypeName)
+        const matchingTypeIds = selectedTypeKey
           ? inspectionTypes
-              .filter((type) => type.name === selectedTypeName)
+              .filter((type) => normaliseTypeName(type.name) === selectedTypeKey)
               .map((type) => type.id)
           : []
 
