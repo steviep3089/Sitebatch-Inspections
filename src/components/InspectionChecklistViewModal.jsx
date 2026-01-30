@@ -240,8 +240,24 @@ export default function InspectionChecklistViewModal({ inspection, checklistId, 
 
         <h2 style={{ marginBottom: '10px' }}>Inspection Checklist</h2>
         <p style={{ marginBottom: '8px', color: '#555' }}>
-          Inspection: {inspection.inspection_types?.name || 'Unknown'} – Asset{' '}
+          Inspection: {inspection.inspection_types?.name || 'Unknown'} - Asset{' '}
           {inspection.asset_items?.asset_id || ''}
+          {inspection.linked_group_id && (
+            <span
+              style={{
+                marginLeft: '8px',
+                fontSize: '0.7rem',
+                fontWeight: 600,
+                color: '#0f766e',
+                background: '#e6fffb',
+                border: '1px solid #99f6e4',
+                padding: '2px 6px',
+                borderRadius: '999px',
+              }}
+            >
+              Linked inspection
+            </span>
+          )}
         </p>
         {checklist && (
           <div

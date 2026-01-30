@@ -398,7 +398,7 @@ export default function AssetTimeline({ asset, inspections, events = [], onInspe
                     onInspectionClick(marker.inspection)
                   }
                 }}
-                title={`${marker.inspection.inspection_types?.name}\n${marker.date.toLocaleDateString()}\nStatus: ${marker.inspection.status}`}
+                title={`${marker.inspection.inspection_types?.name}\n${marker.date.toLocaleDateString()}\nStatus: ${marker.inspection.status}${marker.inspection.linked_group_id ? '\nLinked inspection' : ''}`}
               />
             )
           })}

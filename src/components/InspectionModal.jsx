@@ -18,6 +18,7 @@ export default function InspectionModal({
     notes: '',
     assigned_to: '',
     certs_received: false,
+    certs_na: false,
     certs_link: '',
     next_inspection_date: '',
     next_inspection_na: false,
@@ -41,6 +42,7 @@ export default function InspectionModal({
         notes: inspection.notes || '',
         assigned_to: inspection.assigned_to || '',
         certs_received: inspection.certs_received || false,
+        certs_na: inspection.certs_na || false,
         certs_link: inspection.certs_link || '',
         next_inspection_date: inspection.next_inspection_date || '',
         next_inspection_na: inspection.next_inspection_na || false,
@@ -65,7 +67,8 @@ export default function InspectionModal({
     const nextInspectionValid = formData.next_inspection_na || formData.next_inspection_date
     
     // Check 2: Certs Received - must be ticked AND link provided
-    const certsValid = formData.certs_received && formData.certs_link
+    const certsValid =
+      formData.certs_na || (formData.certs_received && formData.certs_link)
     
     // Check 3: Defect Portal - Actions created OR N/A must be checked
     const defectPortalValid = formData.defect_portal_actions || formData.defect_portal_na
@@ -170,9 +173,9 @@ export default function InspectionModal({
         messages.push('- Date Next Inspection is required (enter date or mark N/A)')
       }
       
-      if (!formData.certs_received || !formData.certs_link) {
-        if (!formData.certs_received) {
-          messages.push('- Certs Received must be ticked')
+      if (!formData.certs_na && (!formData.certs_received || !formData.certs_link)) {
+        if (!formData.certs_received && !formData.certs_na) {
+          messages.push('- Certs Received or Certs N/A must be ticked')
         }
         if (formData.certs_received && !formData.certs_link) {
           messages.push('- Google Drive Link for Certs must be provided')
@@ -259,6 +262,7 @@ export default function InspectionModal({
         { key: 'next_inspection_date', label: 'Next inspection date' },
         { key: 'next_inspection_na', label: 'Next inspection N/A' },
         { key: 'certs_received', label: 'Certs received' },
+        { key: 'certs_na', label: 'Certs N/A' },
         { key: 'certs_link', label: 'Certs link' },
         { key: 'defect_portal_actions', label: 'Defect portal actions' },
         { key: 'defect_portal_na', label: 'Defect portal N/A' },
@@ -387,9 +391,26 @@ export default function InspectionModal({
             marginBottom: '20px',
           }}
         >
-          <h2 style={{ margin: 0 }}>
-            {inspection.inspection_types?.name || 'Inspection Details'}
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0 }}>
+              {inspection.inspection_types?.name || 'Inspection Details'}
+            </h2>
+            {inspection.linked_group_id && (
+              <span
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  color: '#0f766e',
+                  background: '#e6fffb',
+                  border: '1px solid #99f6e4',
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                }}
+              >
+                Linked inspection
+              </span>
+            )}
+          </div>
         </div>
         {/* Details section */}
         <div className="form-group">
@@ -462,16 +483,39 @@ export default function InspectionModal({
 
         <div style={{ marginBottom: '15px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <input
                 type="checkbox"
                 id="certs_received_checkbox"
                 checked={formData.certs_received}
-                onChange={(e) => setFormData({ ...formData, certs_received: e.target.checked })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    certs_received: e.target.checked,
+                    certs_na: e.target.checked ? false : formData.certs_na,
+                  })
+                }
                 disabled={isCompleted}
               />
               <label htmlFor="certs_received_checkbox" style={{ margin: 0, cursor: 'pointer' }}>
                 Certs Received *
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                <input
+                  type="checkbox"
+                  id="certs_na_checkbox"
+                  checked={formData.certs_na}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      certs_na: e.target.checked,
+                      certs_received: e.target.checked ? false : formData.certs_received,
+                      certs_link: e.target.checked ? '' : formData.certs_link,
+                    })
+                  }
+                  disabled={isCompleted}
+                />
+                Certs N/A *
               </label>
             </div>
             {certsUrl && (
@@ -493,7 +537,7 @@ export default function InspectionModal({
           </div>
         </div>
 
-        {formData.certs_received && (
+        {formData.certs_received && !formData.certs_na && (
           <div className="form-group">
             <label htmlFor="certs_link">Google Drive Link for Certs *</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -503,7 +547,7 @@ export default function InspectionModal({
                 value={formData.certs_link}
                 onChange={(e) => setFormData({ ...formData, certs_link: e.target.value })}
                 placeholder="https://drive.google.com/..."
-                required={formData.certs_received}
+                required={formData.certs_received && !formData.certs_na}
                 style={{ flex: 1 }}
                 disabled={isCompleted}
               />
@@ -678,7 +722,7 @@ export default function InspectionModal({
                   <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
                     <li>Date Completed</li>
                     <li>Date Next Inspection (enter date or mark N/A)</li>
-                    <li>Certs Received (tick and add Google Drive link)</li>
+                    <li>Certs Received (tick and add Google Drive link) or Certs N/A</li>
                     <li>Defect Portal (select "Actions created" or "N/A")</li>
                   </ul>
                 </div>

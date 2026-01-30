@@ -66,6 +66,7 @@ export default function MyChecklists() {
           created_at,
           inspections:inspection_id (
             id,
+            linked_group_id,
             asset_items (asset_id, name),
             inspection_types (name)
           )
@@ -135,7 +136,24 @@ export default function MyChecklists() {
                   {cl.inspections?.asset_items?.name || 'N/A'}
                 </td>
                 <td style={{ padding: '8px' }}>
-                  {cl.inspections?.inspection_types?.name || 'N/A'}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span>{cl.inspections?.inspection_types?.name || 'N/A'}</span>
+                    {cl.inspections?.linked_group_id && (
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          color: '#0f766e',
+                          background: '#e6fffb',
+                          border: '1px solid #99f6e4',
+                          padding: '2px 6px',
+                          borderRadius: '999px',
+                        }}
+                      >
+                        Linked
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td style={{ padding: '8px' }}>
                   {cl.due_date

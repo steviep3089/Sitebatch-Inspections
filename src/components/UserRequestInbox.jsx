@@ -66,6 +66,7 @@ export default function UserRequestInbox() {
           due_date,
           inspections:inspection_id (
             id,
+            linked_group_id,
             asset_items (asset_id, name),
             inspection_types (name)
           )
@@ -95,6 +96,7 @@ export default function UserRequestInbox() {
             due_date,
             inspections:inspection_id (
               id,
+              linked_group_id,
               asset_items (asset_id, name),
               inspection_types (name)
             )
@@ -268,7 +270,24 @@ export default function UserRequestInbox() {
                     {alert.inspection_checklists?.inspections?.asset_items?.name || 'N/A'}
                   </td>
                   <td style={{ padding: '8px' }}>
-                    {alert.inspection_checklists?.inspections?.inspection_types?.name || 'N/A'}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <span>{alert.inspection_checklists?.inspections?.inspection_types?.name || 'N/A'}</span>
+                      {alert.inspection_checklists?.inspections?.linked_group_id && (
+                        <span
+                          style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            color: '#0f766e',
+                            background: '#e6fffb',
+                            border: '1px solid #99f6e4',
+                            padding: '2px 6px',
+                            borderRadius: '999px',
+                          }}
+                        >
+                          Linked
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td style={{ padding: '8px' }}>
                     {alert.created_at ? new Date(alert.created_at).toLocaleString() : 'N/A'}
@@ -335,7 +354,24 @@ export default function UserRequestInbox() {
                     {cl.inspections?.asset_items?.name || 'N/A'}
                   </td>
                   <td style={{ padding: '8px' }}>
-                    {cl.inspections?.inspection_types?.name || 'N/A'}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <span>{cl.inspections?.inspection_types?.name || 'N/A'}</span>
+                      {cl.inspections?.linked_group_id && (
+                        <span
+                          style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            color: '#0f766e',
+                            background: '#e6fffb',
+                            border: '1px solid #99f6e4',
+                            padding: '2px 6px',
+                            borderRadius: '999px',
+                          }}
+                        >
+                          Linked
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td style={{ padding: '8px' }}>
                     {cl.due_date

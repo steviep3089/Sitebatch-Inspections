@@ -34,6 +34,7 @@ export default function ChecklistAlertResolveModal({ alertId, checklistId, onClo
           status,
           inspections:inspection_id (
             id,
+            linked_group_id,
             asset_items (asset_id, name),
             inspection_types (name)
           )
@@ -212,8 +213,24 @@ export default function ChecklistAlertResolveModal({ alertId, checklistId, onClo
         <h2 style={{ marginBottom: '10px' }}>Resolve Checklist Issues</h2>
         {checklist && (
           <p style={{ marginBottom: '10px', color: '#555' }}>
-            Inspection: {checklist.inspections?.inspection_types?.name || 'Unknown'} · Asset{' '}
+            Inspection: {checklist.inspections?.inspection_types?.name || 'Unknown'} - Asset{' '}
             {checklist.inspections?.asset_items?.asset_id || ''}
+            {checklist.inspections?.linked_group_id && (
+              <span
+                style={{
+                  marginLeft: '8px',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  color: '#0f766e',
+                  background: '#e6fffb',
+                  border: '1px solid #99f6e4',
+                  padding: '2px 6px',
+                  borderRadius: '999px',
+                }}
+              >
+                Linked inspection
+              </span>
+            )}
           </p>
         )}
 

@@ -75,10 +75,12 @@ export default function AssetOverview() {
               assigned_to,
               certs_received,
               certs_link,
+              certs_na,
               next_inspection_date,
               next_inspection_na,
               defect_portal_actions,
               defect_portal_na,
+              linked_group_id,
               inspection_types (name, frequency, google_drive_url)
             `)
             .eq('asset_id', asset.id)
@@ -448,6 +450,22 @@ export default function AssetOverview() {
                               <strong style={{ fontSize: '1.1rem' }}>
                                 {inspection.inspection_types?.name}
                               </strong>
+                              {inspection.linked_group_id && (
+                                <span
+                                  style={{
+                                    marginLeft: '8px',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 600,
+                                    color: '#0f766e',
+                                    background: '#e6fffb',
+                                    border: '1px solid #99f6e4',
+                                    padding: '2px 6px',
+                                    borderRadius: '999px',
+                                  }}
+                                >
+                                  Linked
+                                </span>
+                              )}
                               <div style={{ marginTop: '5px', fontSize: '0.9rem', color: '#666' }}>
                                 <div>Due: {new Date(inspection.due_date).toLocaleDateString()}</div>
                                 {inspection.completed_date && (

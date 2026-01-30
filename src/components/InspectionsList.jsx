@@ -48,8 +48,10 @@ export default function InspectionsList() {
           next_inspection_na,
           certs_received,
           certs_link,
+          certs_na,
           defect_portal_actions,
           defect_portal_na,
+          linked_group_id,
           asset_items (asset_id, name),
           inspection_types (name, google_drive_url)
         `)
@@ -132,6 +134,16 @@ export default function InspectionsList() {
         inspectionTypeId = newType.id
       }
 
+      const createLinkedGroupId = () => {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          return crypto.randomUUID()
+        }
+        return `linked-${Date.now()}-${Math.random().toString(16).slice(2)}`
+      }
+
+      const linkedGroupId =
+        selectedAssetIds.length > 1 ? createLinkedGroupId() : null
+
       const payloads = selectedAssetIds.map((assetId) => ({
         asset_id: assetId,
         inspection_type_id: inspectionTypeId,
@@ -139,6 +151,7 @@ export default function InspectionsList() {
         status: formData.status,
         notes: formData.notes || null,
         assigned_to: formData.assigned_to || null,
+        linked_group_id: linkedGroupId,
       }))
 
       const { data: newInspections, error } = await supabase
@@ -157,6 +170,9 @@ export default function InspectionsList() {
         const assignedText = formData.assigned_to
           ? ` Assigned to ${formData.assigned_to}.`
           : ''
+        const linkedText = linkedGroupId
+          ? ' Linked inspection group created.'
+          : ''
 
         const assetMap = new Map(
           (plantItems || []).map((asset) => [asset.id, asset.asset_id])
@@ -167,7 +183,7 @@ export default function InspectionsList() {
           const payload = {
             inspection_id: inspection.id,
             action: 'created',
-            details: `${currentUserEmail || 'Unknown user'}: Inspection scheduled from Inspections list for ${assetLabel}.${assignedText}`,
+            details: `${currentUserEmail || 'Unknown user'}: Inspection scheduled from Inspections list for ${assetLabel}.${assignedText}${linkedText}`,
           }
           if (currentUserId) {
             payload.created_by = currentUserId
@@ -218,7 +234,7 @@ export default function InspectionsList() {
 
       // Validate three requirements
       const hasNextInspection = inspection.next_inspection_na || inspection.next_inspection_date
-      const hasCerts = inspection.certs_received && inspection.certs_link
+      const hasCerts = inspection.certs_na || (inspection.certs_received && inspection.certs_link)
       const hasDefectPortal = inspection.defect_portal_actions || inspection.defect_portal_na
 
       if (!hasNextInspection || !hasCerts || !hasDefectPortal) {
@@ -229,8 +245,8 @@ export default function InspectionsList() {
         }
         
         if (!hasCerts) {
-          if (!inspection.certs_received) {
-            messages.push('- Certs Received must be ticked')
+          if (!inspection.certs_received && !inspection.certs_na) {
+            messages.push('- Certs Received or Certs N/A must be ticked')
           }
           if (inspection.certs_received && !inspection.certs_link) {
             messages.push('- Google Drive Link for Certs must be provided')
@@ -529,7 +545,24 @@ export default function InspectionsList() {
                   <td style={{ padding: '10px' }}>{inspection.asset_items?.asset_id}</td>
                   <td style={{ padding: '10px' }}>{inspection.asset_items?.name}</td>
                   <td style={{ padding: '10px' }}>
-                    {inspection.inspection_types?.name}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <span>{inspection.inspection_types?.name}</span>
+                      {inspection.linked_group_id && (
+                        <span
+                          style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            color: '#0f766e',
+                            background: '#e6fffb',
+                            border: '1px solid #99f6e4',
+                            padding: '2px 6px',
+                            borderRadius: '999px',
+                          }}
+                        >
+                          Linked
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td style={{ padding: '10px' }}>
                     {new Date(inspection.due_date).toLocaleDateString()}

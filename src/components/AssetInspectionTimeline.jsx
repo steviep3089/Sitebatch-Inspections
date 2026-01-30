@@ -37,6 +37,7 @@ export default function AssetInspectionTimeline({ assetId }) {
           completed_date,
           status,
           notes,
+          linked_group_id,
           inspection_types (name, frequency)
         `)
         .eq('asset_id', assetId)
@@ -126,7 +127,24 @@ export default function AssetInspectionTimeline({ assetId }) {
             return (
               <div key={inspection.id} className={`timeline-item ${itemClass}`}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                  <strong>{inspection.inspection_types?.name}</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <strong>{inspection.inspection_types?.name}</strong>
+                    {inspection.linked_group_id && (
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          color: '#0f766e',
+                          background: '#e6fffb',
+                          border: '1px solid #99f6e4',
+                          padding: '2px 6px',
+                          borderRadius: '999px',
+                        }}
+                      >
+                        Linked
+                      </span>
+                    )}
+                  </div>
                   <span className={`status-badge status-${itemClass}`}>
                     {inspection.status.toUpperCase()}
                   </span>
