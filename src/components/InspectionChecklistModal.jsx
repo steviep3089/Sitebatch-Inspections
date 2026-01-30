@@ -119,7 +119,18 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
         .eq('is_active', true)
 
       if (selectedTypeId && selectedTypeId !== 'all') {
-        query = query.eq('inspection_type_id', selectedTypeId)
+        const selectedTypeName = inspectionTypes.find((type) => type.id === selectedTypeId)?.name
+        const matchingTypeIds = selectedTypeName
+          ? inspectionTypes
+              .filter((type) => type.name === selectedTypeName)
+              .map((type) => type.id)
+          : []
+
+        if (matchingTypeIds.length > 1) {
+          query = query.in('inspection_type_id', matchingTypeIds)
+        } else {
+          query = query.eq('inspection_type_id', selectedTypeId)
+        }
       }
 
       query = query.order('sort_order', { ascending: true })
@@ -160,7 +171,7 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
     }
 
     loadTemplates()
-  }, [selectedAssetId, selectedTypeId, linkedAssetIds])
+  }, [selectedAssetId, selectedTypeId, linkedAssetIds, inspectionTypes])
 
   const toggleTemplate = (id) => {
     setSelectedTemplateIds((prev) => {
