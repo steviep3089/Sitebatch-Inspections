@@ -338,16 +338,88 @@ export default function InspectionsList() {
   }
 
   const handleDeleteInspection = async (inspectionId) => {
-    const confirmed = window.confirm(
-      'Delete this inspection? This cannot be undone.'
-    )
-    if (!confirmed) return
-
     try {
-      const { error: checklistError } = await supabase
+      const { data: inspection, error: inspectionError } = await supabase
+        .from('inspections')
+        .select('id, linked_group_id')
+        .eq('id', inspectionId)
+        .single()
+
+      if (inspectionError || !inspection) throw inspectionError
+
+      const isLinked = !!inspection.linked_group_id
+
+      if (isLinked) {
+        const deleteAll = window.confirm(
+          'This inspection is linked to others. Click OK to delete ALL linked inspections, or Cancel to delete only this inspection.'
+        )
+
+        if (deleteAll) {
+          const { data: linkedInspections, error: linkedError } = await supabase
+            .from('inspections')
+            .select('id')
+            .eq('linked_group_id', inspection.linked_group_id)
+
+          if (linkedError) throw linkedError
+
+          const linkedIds = (linkedInspections || []).map((row) => row.id)
+
+          if (linkedIds.length === 0) {
+            throw new Error('No linked inspections found to delete.')
+          }
+
+          const { error: checklistError } = await supabase
+            .from('inspection_checklists')
+            .delete()
+            .or(
+              `linked_group_id.eq.${inspection.linked_group_id},inspection_id.in.(${linkedIds.join(',')})`
+            )
+
+          if (checklistError) throw checklistError
+
+          const { error: logDeleteError } = await supabase
+            .from('inspection_logs')
+            .delete()
+            .in('inspection_id', linkedIds)
+
+          if (logDeleteError) throw logDeleteError
+
+          const { data: deletedRows, error } = await supabase
+            .from('inspections')
+            .delete()
+            .eq('linked_group_id', inspection.linked_group_id)
+            .select('id')
+
+          if (error) throw error
+          if (!deletedRows || deletedRows.length === 0) {
+            throw new Error('Delete was blocked. Please check permissions.')
+          }
+
+          fetchData()
+          return
+        }
+
+        const confirmedSingle = window.confirm(
+          'Delete only this inspection? This cannot be undone.'
+        )
+        if (!confirmedSingle) return
+      } else {
+        const confirmed = window.confirm(
+          'Delete this inspection? This cannot be undone.'
+        )
+        if (!confirmed) return
+      }
+
+      let checklistQuery = supabase
         .from('inspection_checklists')
         .delete()
         .eq('inspection_id', inspectionId)
+
+      if (isLinked) {
+        checklistQuery = checklistQuery.is('linked_group_id', null)
+      }
+
+      const { error: checklistError } = await checklistQuery
 
       if (checklistError) throw checklistError
 

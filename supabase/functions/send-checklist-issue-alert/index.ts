@@ -104,7 +104,7 @@ serve(async (req) => {
 
     const { data: checklist, error: checklistError } = await supabaseClient
       .from("inspection_checklists")
-      .select("id, inspection_id, assigned_user_id, status, due_date")
+      .select("id, inspection_id, assigned_user_id, status, due_date, linked_group_id")
       .eq("id", checklistId)
       .single();
 
@@ -129,6 +129,30 @@ serve(async (req) => {
     if (inspectionError || !inspection) {
       throw inspectionError || new Error("Inspection not found");
     }
+
+    let linkedAssets: any[] = [];
+    if (checklist.linked_group_id) {
+      const { data: linkedInspections, error: linkedError } = await supabaseClient
+        .from("inspections")
+        .select("asset_items (asset_id, name, location)")
+        .eq("linked_group_id", checklist.linked_group_id);
+
+      if (linkedError) {
+        throw linkedError;
+      }
+
+      linkedAssets = (linkedInspections || [])
+        .map((row: any) => row.asset_items)
+        .filter(Boolean);
+    }
+
+    const linkedAssetLines = linkedAssets
+      .map((asset: any) => {
+        const label = [asset?.asset_id, asset?.name].filter(Boolean).join(" - ");
+        const location = asset?.location ? ` (${asset.location})` : "";
+        return label ? `${label}${location}` : null;
+      })
+      .filter(Boolean);
 
     const { data: items, error: itemsError } = await supabaseClient
       .from("inspection_checklist_items")
@@ -175,7 +199,9 @@ serve(async (req) => {
       })
       .join("");
 
-    const subject = `Inspection checklist requires attention: ${inspection.asset_items?.asset_id || "Unknown asset"}`;
+    const subject = linkedAssetLines.length > 1
+      ? `Inspection checklist requires attention (${linkedAssetLines.length} linked assets): ${inspection.asset_items?.asset_id || "Unknown asset"}`
+      : `Inspection checklist requires attention: ${inspection.asset_items?.asset_id || "Unknown asset"}`;
 
     const html = `
       <h2>Inspection Checklist Requires Attention</h2>
@@ -188,6 +214,16 @@ serve(async (req) => {
         <li><strong>Due Date:</strong> ${dueDisplay}</li>
         <li><strong>Company Assigned To:</strong> ${inspection.assigned_to || "N/A"}</li>
       </ul>
+      ${
+        linkedAssetLines.length > 1
+          ? `
+      <h3>Linked Assets (${linkedAssetLines.length})</h3>
+      <ul>
+        ${linkedAssetLines.map((line) => `<li>${line}</li>`).join("")}
+      </ul>
+      `
+          : ""
+      }
       <p><strong>Issues summary:</strong> ${issueSummary}</p>
       <h3>Checklist Items</h3>
       <table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:13px;">
