@@ -105,23 +105,60 @@ export default function AssetOverview() {
       // Build a map of the latest checklist per inspection across all assets
       const allInspections = assetsWithInspections.flatMap((asset) => asset.inspections || [])
       const inspectionIds = allInspections.map((insp) => insp.id)
+      const linkedGroupIds = Array.from(
+        new Set(allInspections.map((insp) => insp.linked_group_id).filter(Boolean))
+      )
       const checklistMap = {}
 
-      if (inspectionIds.length > 0) {
-        const { data: checklistData, error: checklistError } = await supabase
-          .from('inspection_checklists')
-          .select('id, inspection_id, status, created_at')
-          .in('inspection_id', inspectionIds)
-          .order('created_at', { ascending: false })
+      if (inspectionIds.length > 0 || linkedGroupIds.length > 0) {
+        const checklistRows = []
 
-        if (checklistError) throw checklistError
+        if (inspectionIds.length > 0) {
+          const { data: checklistData, error: checklistError } = await supabase
+            .from('inspection_checklists')
+            .select('id, inspection_id, linked_group_id, status, created_at')
+            .in('inspection_id', inspectionIds)
+            .order('created_at', { ascending: false })
 
-        ;(checklistData || []).forEach((row) => {
-          if (!checklistMap[row.inspection_id]) {
-            checklistMap[row.inspection_id] = {
-              id: row.id,
-              status: row.status,
-            }
+          if (checklistError) throw checklistError
+          checklistRows.push(...(checklistData || []))
+        }
+
+        if (linkedGroupIds.length > 0) {
+          const { data: linkedChecklistData, error: linkedChecklistError } = await supabase
+            .from('inspection_checklists')
+            .select('id, inspection_id, linked_group_id, status, created_at')
+            .in('linked_group_id', linkedGroupIds)
+            .order('created_at', { ascending: false })
+
+          if (linkedChecklistError) throw linkedChecklistError
+          checklistRows.push(...(linkedChecklistData || []))
+        }
+
+        const uniqueRows = Array.from(
+          new Map(checklistRows.map((row) => [row.id, row])).values()
+        )
+
+        const byInspection = {}
+        const byLinkedGroup = {}
+
+        uniqueRows.forEach((row) => {
+          if (row.inspection_id && !byInspection[row.inspection_id]) {
+            byInspection[row.inspection_id] = { id: row.id, status: row.status }
+          }
+          if (row.linked_group_id && !byLinkedGroup[row.linked_group_id]) {
+            byLinkedGroup[row.linked_group_id] = { id: row.id, status: row.status }
+          }
+        })
+
+        allInspections.forEach((insp) => {
+          const linkedChecklist = insp.linked_group_id
+            ? byLinkedGroup[insp.linked_group_id]
+            : null
+          const directChecklist = byInspection[insp.id]
+          const chosen = linkedChecklist || directChecklist
+          if (chosen) {
+            checklistMap[insp.id] = chosen
           }
         })
       }

@@ -14,6 +14,8 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
   const [selectAll, setSelectAll] = useState(false)
   const [addedTemplates, setAddedTemplates] = useState([])
   const [saving, setSaving] = useState(false)
+  const [linkedAssets, setLinkedAssets] = useState([])
+  const [linkedAssetIds, setLinkedAssetIds] = useState([])
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -35,15 +37,61 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
         setUsers(usersRes.data || [])
         setAssets(assetsRes.data || [])
         setInspectionTypes(typesRes.data || [])
-
         // Default filters from the inspection
-        if (inspection?.asset_id) {
-          setSelectedAssetId(inspection.asset_id)
-        }
         if (inspection?.inspection_type_id) {
           setSelectedTypeId(inspection.inspection_type_id)
         }
+
+        if (inspection?.linked_group_id) {
+          try {
+            const { data: linkedInspections, error: linkedError } = await supabase
+              .from('inspections')
+              .select('asset_id, asset_items(asset_id)')
+              .eq('linked_group_id', inspection.linked_group_id)
+
+            if (linkedError) throw linkedError
+
+            const assetMap = new Map()
+            ;(linkedInspections || []).forEach((row) => {
+              const label = row.asset_items?.asset_id || row.asset_id
+              if (row.asset_id) {
+                assetMap.set(row.asset_id, label)
+              }
+            })
+
+            const linkedList = Array.from(assetMap.entries()).map(([id, asset_id]) => ({
+              id,
+              asset_id,
+            }))
+
+            setLinkedAssets(linkedList)
+            setLinkedAssetIds(linkedList.map((asset) => asset.id))
+
+            if (linkedList.length > 1) {
+              setSelectedAssetId('linked_all')
+            } else if (linkedList.length === 1) {
+              setSelectedAssetId(linkedList[0].id)
+            } else if (inspection?.asset_id) {
+              setSelectedAssetId(inspection.asset_id)
+            }
+          } catch (linkedFetchError) {
+            console.error('Error loading linked inspection assets:', linkedFetchError)
+            if (inspection?.asset_id) {
+              setSelectedAssetId(inspection.asset_id)
+            }
+            setLinkedAssets([])
+            setLinkedAssetIds([])
+          }
+        } else {
+          if (inspection?.asset_id) {
+            setSelectedAssetId(inspection.asset_id)
+          }
+          setLinkedAssets([])
+          setLinkedAssetIds([])
+        }
+
         setAddedTemplates([])
+
       } catch (error) {
         console.error('Error loading checklist data:', error)
       } finally {
@@ -90,15 +138,21 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
         ...item,
         associatedAssetIds: (item.inspection_item_template_assets || []).map((row) => row.asset_id),
       }))
+      let filtered = loaded
 
-      const filtered =
-        selectedAssetId && selectedAssetId !== 'all'
-          ? loaded.filter(
-              (item) =>
-                item.associatedAssetIds.length === 0 ||
-                item.associatedAssetIds.includes(selectedAssetId)
-            )
-          : loaded
+      if (selectedAssetId && selectedAssetId !== 'all' && selectedAssetId !== 'linked_all') {
+        filtered = loaded.filter(
+          (item) =>
+            item.associatedAssetIds.length === 0 ||
+            item.associatedAssetIds.includes(selectedAssetId)
+        )
+      } else if (selectedAssetId === 'linked_all' && linkedAssetIds.length > 0) {
+        filtered = loaded.filter(
+          (item) =>
+            item.associatedAssetIds.length === 0 ||
+            item.associatedAssetIds.some((assetId) => linkedAssetIds.includes(assetId))
+        )
+      }
 
       setTemplates(filtered)
       setSelectedTemplateIds([])
@@ -106,7 +160,7 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
     }
 
     loadTemplates()
-  }, [selectedAssetId, selectedTypeId])
+  }, [selectedAssetId, selectedTypeId, linkedAssetIds])
 
   const toggleTemplate = (id) => {
     setSelectedTemplateIds((prev) => {
@@ -184,69 +238,41 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
           : templates.filter((t) => selectedTemplateIds.includes(t.id))
 
       const linkedGroupId = inspection.linked_group_id || null
-      let inspectionsToProcess = [inspection]
 
       if (linkedGroupId) {
-        const { data: linkedInspections, error: linkedError } = await supabase
-          .from('inspections')
-          .select('id, asset_id, inspection_type_id, due_date, status, linked_group_id')
-          .eq('linked_group_id', linkedGroupId)
-          .eq('inspection_type_id', inspection.inspection_type_id)
-          .eq('status', 'pending')
-
-        if (linkedError) throw linkedError
-        if (linkedInspections && linkedInspections.length > 0) {
-          inspectionsToProcess = linkedInspections
-        }
-      }
-
-      const inspectionIds = inspectionsToProcess.map((insp) => insp.id)
-      let existingChecklistIds = new Set()
-
-      if (inspectionIds.length > 0) {
-        const { data: existingRows, error: existingError } = await supabase
+        const { data: existingChecklist, error: existingError } = await supabase
           .from('inspection_checklists')
-          .select('inspection_id')
-          .in('inspection_id', inspectionIds)
+          .select('id')
+          .eq('linked_group_id', linkedGroupId)
+          .maybeSingle()
 
         if (existingError) throw existingError
-        existingChecklistIds = new Set((existingRows || []).map((row) => row.inspection_id))
-      }
-
-      const toCreate = inspectionsToProcess.filter((insp) => !existingChecklistIds.has(insp.id))
-      const skippedExisting = inspectionsToProcess.filter((insp) => existingChecklistIds.has(insp.id))
-
-      if (toCreate.length === 0) {
-        alert('All linked inspections already have a checklist assigned.')
-        return
-      }
-
-      const assetLabelMap = new Map((assets || []).map((asset) => [asset.id, asset.asset_id]))
-      const createdChecklists = []
-      const skippedNoTemplates = []
-
-      for (const insp of toCreate) {
-        const applicableTemplates = chosenTemplates.filter(
-          (t) => (t.associatedAssetIds || []).length === 0 || (t.associatedAssetIds || []).includes(insp.asset_id)
-        )
-
-        if (applicableTemplates.length === 0) {
-          skippedNoTemplates.push(insp)
-          continue
+        if (existingChecklist?.id) {
+          alert('A checklist already exists for this linked inspection group.')
+          return
         }
+
+        const { data: linkedInspections, error: linkedError } = await supabase
+          .from('inspections')
+          .select('id, asset_id')
+          .eq('linked_group_id', linkedGroupId)
+
+        if (linkedError) throw linkedError
+
+        const linkedList = linkedInspections || []
+        const linkedAssetIds = Array.from(new Set(linkedList.map((i) => i.asset_id).filter(Boolean)))
+        const useAssetPrefix = linkedAssetIds.length > 1
 
         const { data: checklist, error: checklistError } = await supabase
           .from('inspection_checklists')
           .insert({
-            inspection_id: insp.id,
-            // Always tie the checklist to the inspection's
-            // asset and type; the filters above are just for
-            // picking which template items to include.
-            asset_id: insp.asset_id,
-            inspection_type_id: insp.inspection_type_id,
+            inspection_id: inspection.id,
+            linked_group_id: linkedGroupId,
+            asset_id: inspection.asset_id,
+            inspection_type_id: inspection.inspection_type_id,
             assigned_user_id: selectedUserId,
             status: 'sent',
-            due_date: insp.due_date || null,
+            due_date: inspection.due_date || null,
             created_by: currentUserId,
           })
           .select()
@@ -254,7 +280,109 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
 
         if (checklistError) throw checklistError
 
-        const itemsToInsert = applicableTemplates.map((t, index) => ({
+        const assetLabelMap = new Map((assets || []).map((asset) => [asset.id, asset.asset_id]))
+
+        const itemsToInsert = chosenTemplates.map((t, index) => {
+          let prefix = ''
+          if (useAssetPrefix && (t.associatedAssetIds || []).length === 1) {
+            const assetLabel = assetLabelMap.get(t.associatedAssetIds[0])
+            if (assetLabel) {
+              prefix = `[${assetLabel}] `
+            }
+          }
+
+          return {
+            checklist_id: checklist.id,
+            template_id: t.id,
+            label:
+              prefix +
+              ((t.unique_id ? `${t.unique_id} - ` : '') + (t.description || t.name || '') ||
+                t.unique_id ||
+                `Item ${index + 1}`),
+            sort_order: index,
+            created_by: currentUserId,
+          }
+        })
+
+        if (itemsToInsert.length > 0) {
+          const { error: itemsError } = await supabase
+            .from('inspection_checklist_items')
+            .insert(itemsToInsert)
+
+          if (itemsError) throw itemsError
+        }
+
+        try {
+          const assignedUser = users.find((u) => u.id === selectedUserId)
+          const assignedEmail = assignedUser?.email || 'unknown user'
+          const logTargets = linkedList.length > 0 ? linkedList : [{ id: inspection.id, asset_id: inspection.asset_id }]
+
+          const payloads = logTargets.map((insp) => {
+            const payload = {
+              inspection_id: insp.id,
+              action: 'checklist_created',
+              details: `${currentUserEmail || 'Unknown user'}: Linked inspection checklist created and assigned to ${assignedEmail}.`,
+            }
+            if (currentUserId) {
+              payload.created_by = currentUserId
+            }
+            return payload
+          })
+
+          if (payloads.length > 0) {
+            const { error: logError } = await supabase
+              .from('inspection_logs')
+              .insert(payloads)
+            if (logError) {
+              console.error('Error logging checklist creation:', logError)
+            }
+          }
+        } catch (logError) {
+          console.error('Error logging checklist creation:', logError)
+        }
+
+        try {
+          await supabase.functions.invoke('send-checklist-email', {
+            body: { checklist_id: checklist.id },
+          })
+        } catch (funcCallError) {
+          console.error('Error calling send-checklist-email function:', funcCallError)
+        }
+
+        const assetLabels = linkedAssetIds
+          .map((id) => assetLabelMap.get(id) || id)
+          .filter(Boolean)
+        const linkedSummary = assetLabels.length > 0 ? ` Linked assets: ${assetLabels.join(', ')}.` : ''
+
+        alert(`Checklist created for linked inspections.${linkedSummary}`)
+        setSelectedTemplateIds([])
+        setSelectAll(false)
+        setAddedTemplates([])
+        if (onCreated) onCreated()
+        return
+      }
+
+      const { data: checklist, error: checklistError } = await supabase
+        .from('inspection_checklists')
+        .insert({
+          inspection_id: inspection.id,
+          // Always tie the checklist to the inspection's
+          // asset and type; the filters above are just for
+          // picking which template items to include.
+          asset_id: inspection.asset_id,
+          inspection_type_id: inspection.inspection_type_id,
+          assigned_user_id: selectedUserId,
+          status: 'sent',
+          due_date: inspection.due_date || null,
+          created_by: currentUserId,
+        })
+        .select()
+        .single()
+
+      if (checklistError) throw checklistError
+
+      if (chosenTemplates.length > 0) {
+        const itemsToInsert = chosenTemplates.map((t, index) => ({
           checklist_id: checklist.id,
           template_id: t.id,
           label:
@@ -266,63 +394,57 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
           created_by: currentUserId,
         }))
 
-        if (itemsToInsert.length > 0) {
-          const { error: itemsError } = await supabase
-            .from('inspection_checklist_items')
-            .insert(itemsToInsert)
+        const { error: itemsError } = await supabase
+          .from('inspection_checklist_items')
+          .insert(itemsToInsert)
 
-          if (itemsError) throw itemsError
+        if (itemsError) throw itemsError
+      }
+
+      try {
+        const assignedUser = users.find((u) => u.id === selectedUserId)
+        const assignedEmail = assignedUser?.email || 'unknown user'
+
+        const payload = {
+          inspection_id: inspection.id,
+          action: 'checklist_created',
+          details: `${currentUserEmail || 'Unknown user'}: Inspection checklist created and assigned to ${assignedEmail}.`,
         }
-
-        createdChecklists.push({ checklistId: checklist.id, inspectionId: insp.id })
-
-        // Log checklist creation per inspection
-        try {
-          const assignedUser = users.find((u) => u.id === selectedUserId)
-          const assignedEmail = assignedUser?.email || 'unknown user'
-
-          const payload = {
-            inspection_id: insp.id,
-            action: 'checklist_created',
-            details: `${currentUserEmail || 'Unknown user'}: Inspection checklist created and assigned to ${assignedEmail}.`,
-          }
-          if (currentUserId) {
-            payload.created_by = currentUserId
-          }
-          const { error: logError } = await supabase
-            .from('inspection_logs')
-            .insert(payload)
-          if (logError) {
-            console.error('Error logging checklist creation:', logError)
-          }
-        } catch (logError) {
+        if (currentUserId) {
+          payload.created_by = currentUserId
+        }
+        const { error: logError } = await supabase
+          .from('inspection_logs')
+          .insert(payload)
+        if (logError) {
           console.error('Error logging checklist creation:', logError)
         }
+      } catch (logError) {
+        console.error('Error logging checklist creation:', logError)
+      }
 
-        // Fire-and-forget email notification to the assigned user.
+      try {
+        await supabase.functions.invoke('send-checklist-email', {
+          body: { checklist_id: checklist.id },
+        })
+      } catch (funcCallError) {
+        console.error('Error calling send-checklist-email function:', funcCallError)
+        let details = funcCallError?.message || 'Unknown error'
         try {
-          await supabase.functions.invoke('send-checklist-email', {
-            body: { checklist_id: checklist.id },
-          })
-        } catch (funcCallError) {
-          console.error('Error calling send-checklist-email function:', funcCallError)
+          const resp = funcCallError?.context?.response
+          if (resp) {
+            const text = await resp.text()
+            if (text) {
+              details += ' | ' + text
+            }
+          }
+        } catch (inner) {
+          console.error('Error reading function error response:', inner)
         }
+        alert('Checklist created, but email failed: ' + details)
       }
 
-      const summaryParts = []
-      summaryParts.push(`${createdChecklists.length} checklist(s) created`)
-      if (skippedExisting.length > 0) {
-        summaryParts.push(`${skippedExisting.length} already had a checklist`)
-      }
-      if (skippedNoTemplates.length > 0) {
-        const assetLabels = skippedNoTemplates
-          .map((insp) => assetLabelMap.get(insp.asset_id) || insp.asset_id)
-          .filter(Boolean)
-        const labelText = assetLabels.length > 0 ? ` (${assetLabels.join(', ')})` : ''
-        summaryParts.push(`${skippedNoTemplates.length} skipped (no matching templates)${labelText}`)
-      }
-
-      alert(`Checklist creation complete: ${summaryParts.join('; ')}.`)
+      alert('Checklist created and assigned.')
       setSelectedTemplateIds([])
       setSelectAll(false)
       setAddedTemplates([])
@@ -337,6 +459,10 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
 
 
   if (!inspection) return null
+
+  const assetOptions = linkedAssets.length > 0 ? linkedAssets : assets
+  const showLinkedAll = linkedAssets.length > 1
+  const showAllAssets = linkedAssets.length === 0
 
   return (
     <div
@@ -411,6 +537,11 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
             are still pending.
           </p>
         )}
+        {linkedAssets.length > 0 && (
+          <p style={{ marginTop: 0, marginBottom: '15px', color: '#555', fontSize: '0.9rem' }}>
+            Linked assets: {linkedAssets.map((asset) => asset.asset_id).join(', ')}
+          </p>
+        )}
 
 
         {loading ? (
@@ -447,8 +578,9 @@ export default function InspectionChecklistModal({ inspection, onClose, onCreate
                   onChange={(e) => setSelectedAssetId(e.target.value)}
                 >
                   <option value="">Select asset...</option>
-                  <option value="all">All assets</option>
-                  {assets.map((asset) => (
+                  {showLinkedAll && <option value="linked_all">All linked assets</option>}
+                  {showAllAssets && <option value="all">All assets</option>}
+                  {assetOptions.map((asset) => (
                     <option key={asset.id} value={asset.id}>
                       {asset.asset_id}
                     </option>
