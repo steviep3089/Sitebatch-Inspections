@@ -221,6 +221,7 @@ export default function InspectionItemsAdmin() {
           capacity_na: capacityNa,
           expiry_date: expiryNa ? null : expiryDate || null,
           expiry_na: expiryNa,
+          is_active: true,
         })
         .eq('id', editingItemId)
         .select()
@@ -279,6 +280,7 @@ export default function InspectionItemsAdmin() {
           capacity_na: capacityNa,
           expiry_date: expiryNa ? null : expiryDate || null,
           expiry_na: expiryNa,
+          is_active: true,
         })
         .select()
         .single()
@@ -450,7 +452,7 @@ export default function InspectionItemsAdmin() {
         const expiryNaIndex = indexOf('expiry_na')
         const assetsIndex = indexOf('assets')
         const sortIndex = indexOf('sort_order')
-        const activeIndex = indexOf('is_active')
+        // is_active is always true now (items should be deleted instead of deactivated)
 
         if (typeIndex === -1 || uniqueIndex === -1 || descriptionIndex === -1) {
           setImportStatus('CSV must include inspection_type, unique_id, and description columns.')
@@ -494,7 +496,7 @@ export default function InspectionItemsAdmin() {
           const expiryDate = expiryIndex !== -1 ? normaliseDate(row[expiryIndex] || '') : ''
           const expiryNaValue = expiryNaIndex !== -1 ? toBool(row[expiryNaIndex]) : false
           const sortOrder = sortIndex !== -1 ? parseInt(row[sortIndex] || '0', 10) || 0 : 0
-          const isActive = activeIndex !== -1 ? toBool(row[activeIndex]) : true
+          const isActive = true
 
           const assetsRaw = assetsIndex !== -1 ? (row[assetsIndex] || '').trim() : ''
           const assetCodes = assetsRaw
@@ -627,7 +629,7 @@ export default function InspectionItemsAdmin() {
           expiry_date: row.expiry_na ? null : row.expiry_date || null,
           expiry_na: row.expiry_na,
           sort_order: row.sort_order || 0,
-          is_active: row.is_active !== false,
+          is_active: true,
         })
         .select()
         .single()
@@ -684,7 +686,7 @@ export default function InspectionItemsAdmin() {
           expiry_date: row.expiry_na ? null : row.expiry_date || null,
           expiry_na: row.expiry_na,
           sort_order: row.sort_order || 0,
-          is_active: row.is_active !== false,
+          is_active: true,
         })
         .eq('id', existing.id)
 
@@ -766,7 +768,7 @@ export default function InspectionItemsAdmin() {
             className="btn btn-secondary"
             onClick={() => {
               const sample = [
-                'inspection_type,unique_id,description,capacity,capacity_na,expiry_date,expiry_na,assets,sort_order,is_active',
+            'inspection_type,unique_id,description,capacity,capacity_na,expiry_date,expiry_na,assets,sort_order',
                 'Annual Statutory Inspection,BX22 LB1,Anchor bolt check,25,false,31-12-2026,false,BX22|BX23,1,true',
               ].join('\n')
               const blob = new Blob([sample], { type: 'text/csv;charset=utf-8;' })
