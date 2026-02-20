@@ -134,12 +134,20 @@ const getAccessTokenFromRefreshToken = async () => {
 }
 
 const getAccessToken = async () => {
+  const hasServiceAccount =
+    !!Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL') &&
+    !!Deno.env.get('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY')
+
+  if (hasServiceAccount) {
+    return await getAccessTokenFromServiceAccount()
+  }
+
   const oauthToken = await getAccessTokenFromRefreshToken()
   if (oauthToken) {
     return oauthToken
   }
 
-  return await getAccessTokenFromServiceAccount()
+  throw new Error('No Google auth method configured. Set service account or OAuth secrets.')
 }
 
 const parseFolderId = (folderUrl: string) => {
@@ -186,6 +194,12 @@ const getDriveFileMetadata = async (accessToken: string, fileId: string): Promis
 
   const metadataJson = await metadataResponse.json().catch(() => ({}))
   if (!metadataResponse.ok) {
+    const apiMessage = metadataJson?.error?.message || ''
+    if (apiMessage.includes('File not found')) {
+      throw new Error(
+        `Configured Drive folder ID is not visible to the active upload account: ${fileId}. Re-save the exact folder URL in Admin Tools and confirm the service account has access to that specific folder.`
+      )
+    }
     throw new Error(metadataJson?.error?.message || 'Failed to read target Drive folder metadata')
   }
 
