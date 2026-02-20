@@ -745,6 +745,34 @@ export default function InspectionsList() {
                               <span>Locked</span>
                             </button>
                           )}
+                          {activeTab === 'awaitingCerts' && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const certsUrl =
+                                  inspection.certs_link || inspection.inspection_types?.google_drive_url
+                                if (!certsUrl) {
+                                  alert('No certs folder link is configured for this inspection.')
+                                  return
+                                }
+                                window.open(certsUrl, '_blank', 'noopener,noreferrer')
+                              }}
+                              style={{
+                                padding: '5px 10px',
+                                fontSize: '0.8rem',
+                                borderRadius: '999px',
+                                border: 'none',
+                                backgroundColor: '#dc2626',
+                                color: '#fff',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                              title="Open certs folder"
+                            >
+                              Add Certs
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => {
