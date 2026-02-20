@@ -163,6 +163,49 @@ const parseFolderId = (folderUrl: string) => {
   throw new Error('Unable to parse Google Drive folder ID from folder URL')
 }
 
+type DriveFileMetadata = {
+  id: string
+  name?: string
+  mimeType?: string
+  driveId?: string
+  shortcutDetails?: {
+    targetId?: string
+  }
+}
+
+const getDriveFileMetadata = async (accessToken: string, fileId: string): Promise<DriveFileMetadata> => {
+  const metadataResponse = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true&fields=id,name,mimeType,driveId,shortcutDetails`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  )
+
+  const metadataJson = await metadataResponse.json().catch(() => ({}))
+  if (!metadataResponse.ok) {
+    throw new Error(metadataJson?.error?.message || 'Failed to read target Drive folder metadata')
+  }
+
+  return metadataJson as DriveFileMetadata
+}
+
+const resolveUploadFolder = async (accessToken: string, initialFolderId: string): Promise<DriveFileMetadata> => {
+  const first = await getDriveFileMetadata(accessToken, initialFolderId)
+
+  if (first.mimeType === 'application/vnd.google-apps.shortcut') {
+    const shortcutTargetId = first.shortcutDetails?.targetId
+    if (!shortcutTargetId) {
+      throw new Error('Folder link points to a shortcut without a target. Use the destination folder link directly.')
+    }
+    return await getDriveFileMetadata(accessToken, shortcutTargetId)
+  }
+
+  return first
+}
+
 const decodeBase64 = (value: string) => {
   const binary = atob(value)
   const bytes = new Uint8Array(binary.length)
@@ -202,8 +245,21 @@ serve(async (req) => {
       )
     }
 
-    const folderId = parseFolderId(body.folder_url)
     const accessToken = await getAccessToken()
+    const parsedFolderId = parseFolderId(body.folder_url)
+    const resolvedFolder = await resolveUploadFolder(accessToken, parsedFolderId)
+
+    if (resolvedFolder.mimeType !== 'application/vnd.google-apps.folder') {
+      throw new Error('Configured Drive link is not a folder. Please set a valid folder URL in Admin Tools.')
+    }
+
+    if (!resolvedFolder.driveId) {
+      throw new Error(
+        'Configured folder is in My Drive (or not a Shared Drive folder). Set Admin Tools link to a Shared Drive folder URL.'
+      )
+    }
+
+    const folderId = resolvedFolder.id
 
     const metadata = {
       name: body.file_name,
