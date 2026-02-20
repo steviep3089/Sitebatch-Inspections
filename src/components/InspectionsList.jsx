@@ -524,19 +524,30 @@ export default function InspectionsList() {
 
       const base64 = await toBase64(uploadFile)
 
-      const { data, error } = await supabase.functions.invoke('upload-certs-to-drive', {
-        body: {
+      const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-certs-to-drive`
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
           inspection_id: uploadInspection.id,
           folder_url: folderUrl,
           file_name: uploadFile.name,
           content_type: uploadFile.type || 'application/octet-stream',
           file_base64: base64,
-        },
+        }),
       })
 
-      if (error) throw error
-      if (!data?.success) {
-        throw new Error(data?.error || 'Upload failed')
+      const responseBody = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(responseBody?.error || `Upload failed with status ${response.status}`)
+      }
+
+      if (!responseBody?.success) {
+        throw new Error(responseBody?.error || 'Upload failed')
       }
 
       const { error: updateError } = await supabase
