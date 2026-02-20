@@ -17,6 +17,9 @@
     },
     "cleanup-checklist-alerts": {
       "verify_jwt": false
+    },
+    "upload-certs-to-drive": {
+      "verify_jwt": false
     }
   }
 }
