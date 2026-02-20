@@ -56,6 +56,20 @@ supabase functions deploy update-overdue-inspections
 **Schedule (add to Supabase Dashboard):**
 - Run daily at midnight: `0 0 * * *`
 
+### 4. upload-certs-to-drive
+
+Uploads a user-selected certificate file directly to a configured Google Drive folder.
+
+**Functionality:**
+- Accepts a file payload from the app (base64), file name and target folder URL
+- Uses Google service account authentication to request a Drive API access token
+- Uploads the file into the target folder in Google Drive
+
+**Deploy:**
+```bash
+supabase functions deploy upload-certs-to-drive
+```
+
 ## Setup Instructions
 
 1. **Deploy Functions:**
@@ -65,6 +79,7 @@ supabase functions deploy update-overdue-inspections
   supabase functions deploy send-inspection-reminders
   supabase functions deploy send-item-reminders
   supabase functions deploy update-overdue-inspections
+   supabase functions deploy upload-certs-to-drive
    ```
 
 2. **Set up Cron Jobs:**
@@ -83,6 +98,16 @@ supabase functions deploy update-overdue-inspections
 These are automatically available in Supabase Edge Functions:
 - `SUPABASE_URL`: Your Supabase project URL
 - `SUPABASE_SERVICE_ROLE_KEY`: Service role key for admin operations
+
+Additional secrets required for `upload-certs-to-drive`:
+- `GOOGLE_SERVICE_ACCOUNT_EMAIL`
+- `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
+
+Set them with:
+```bash
+supabase secrets set GOOGLE_SERVICE_ACCOUNT_EMAIL="your-service-account@your-project.iam.gserviceaccount.com"
+supabase secrets set GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+```
 
 ## Testing Locally
 

@@ -17,6 +17,9 @@ export default function InspectionsList() {
   const [checklistInspection, setChecklistInspection] = useState(null)
   const [inspectionChecklists, setInspectionChecklists] = useState({})
   const [viewChecklist, setViewChecklist] = useState(null) // { inspection, checklistId }
+  const [uploadInspection, setUploadInspection] = useState(null)
+  const [uploadFile, setUploadFile] = useState(null)
+  const [uploadingCert, setUploadingCert] = useState(false)
   const [selectedAssetIds, setSelectedAssetIds] = useState([])
   const [formData, setFormData] = useState({
     inspection_type_id: '',
@@ -484,6 +487,82 @@ export default function InspectionsList() {
     return `${overdueDays} day${overdueDays === 1 ? '' : 's'} overdue`
   }
 
+  const toBase64 = async (file) => {
+    const arrayBuffer = await file.arrayBuffer()
+    let binary = ''
+    const bytes = new Uint8Array(arrayBuffer)
+    const chunkSize = 0x8000
+
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize)
+      binary += String.fromCharCode(...chunk)
+    }
+
+    return btoa(binary)
+  }
+
+  const handleUploadCert = async () => {
+    try {
+      if (!uploadInspection) return
+      if (!uploadFile) {
+        alert('Please choose a file to upload.')
+        return
+      }
+
+      const folderUrl = uploadInspection.certs_link || uploadInspection.inspection_types?.google_drive_url
+      if (!folderUrl) {
+        alert('No Google Drive folder link is configured for this inspection.')
+        return
+      }
+
+      if (uploadFile.size > 15 * 1024 * 1024) {
+        alert('File is too large. Please upload files up to 15MB.')
+        return
+      }
+
+      setUploadingCert(true)
+
+      const base64 = await toBase64(uploadFile)
+
+      const { data, error } = await supabase.functions.invoke('upload-certs-to-drive', {
+        body: {
+          inspection_id: uploadInspection.id,
+          folder_url: folderUrl,
+          file_name: uploadFile.name,
+          content_type: uploadFile.type || 'application/octet-stream',
+          file_base64: base64,
+        },
+      })
+
+      if (error) throw error
+      if (!data?.success) {
+        throw new Error(data?.error || 'Upload failed')
+      }
+
+      const { error: updateError } = await supabase
+        .from('inspections')
+        .update({
+          certs_received: true,
+          waiting_on_certs: false,
+          certs_na: false,
+          certs_link: uploadInspection.certs_link || folderUrl,
+        })
+        .eq('id', uploadInspection.id)
+
+      if (updateError) throw updateError
+
+      alert('Certificate uploaded successfully.')
+      setUploadInspection(null)
+      setUploadFile(null)
+      fetchData()
+    } catch (error) {
+      console.error('Error uploading certificate:', error)
+      alert('Error uploading certificate: ' + (error.message || 'Unknown error'))
+    } finally {
+      setUploadingCert(false)
+    }
+  }
+
   if (loading) {
     return <div>Loading inspections...</div>
   }
@@ -750,13 +829,8 @@ export default function InspectionsList() {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation()
-                                const certsUrl =
-                                  inspection.certs_link || inspection.inspection_types?.google_drive_url
-                                if (!certsUrl) {
-                                  alert('No certs folder link is configured for this inspection.')
-                                  return
-                                }
-                                window.open(certsUrl, '_blank', 'noopener,noreferrer')
+                                setUploadInspection(inspection)
+                                setUploadFile(null)
                               }}
                               style={{
                                 padding: '5px 10px',
@@ -846,6 +920,91 @@ export default function InspectionsList() {
             setViewChecklist(null)
           }}
         />
+      )}
+
+      {uploadInspection && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '16px',
+          }}
+          onClick={() => {
+            if (!uploadingCert) {
+              setUploadInspection(null)
+              setUploadFile(null)
+            }
+          }}
+        >
+          <div
+            className="card"
+            style={{ width: '100%', maxWidth: '520px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginBottom: '8px' }}>Upload Certificate</h3>
+            <p style={{ marginTop: 0, color: '#555' }}>
+              {uploadInspection.asset_items?.asset_id} - {uploadInspection.inspection_types?.name}
+            </p>
+
+            <div className="form-group">
+              <label htmlFor="cert_upload_file">Select file</label>
+              <input
+                id="cert_upload_file"
+                type="file"
+                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                disabled={uploadingCert}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  const certsUrl =
+                    uploadInspection.certs_link || uploadInspection.inspection_types?.google_drive_url
+                  if (!certsUrl) {
+                    alert('No certs folder link is configured for this inspection.')
+                    return
+                  }
+                  window.open(certsUrl, '_blank', 'noopener,noreferrer')
+                }}
+                disabled={uploadingCert}
+              >
+                Open Folder
+              </button>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    if (!uploadingCert) {
+                      setUploadInspection(null)
+                      setUploadFile(null)
+                    }
+                  }}
+                  disabled={uploadingCert}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleUploadCert}
+                  disabled={uploadingCert || !uploadFile}
+                >
+                  {uploadingCert ? 'Uploading...' : 'Upload'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
