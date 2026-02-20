@@ -133,21 +133,32 @@ const getAccessTokenFromRefreshToken = async () => {
   return tokenJson.access_token as string
 }
 
-const getAccessToken = async () => {
+type TokenSource = 'service_account' | 'oauth'
+
+const getAvailableTokens = async () => {
   const hasServiceAccount =
     !!Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL') &&
     !!Deno.env.get('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY')
 
+  const tokens: Array<{ source: TokenSource; token: string }> = []
+
   if (hasServiceAccount) {
-    return await getAccessTokenFromServiceAccount()
+    tokens.push({
+      source: 'service_account',
+      token: await getAccessTokenFromServiceAccount(),
+    })
   }
 
   const oauthToken = await getAccessTokenFromRefreshToken()
   if (oauthToken) {
-    return oauthToken
+    tokens.push({ source: 'oauth', token: oauthToken })
   }
 
-  throw new Error('No Google auth method configured. Set service account or OAuth secrets.')
+  if (tokens.length === 0) {
+    throw new Error('No Google auth method configured. Set service account or OAuth secrets.')
+  }
+
+  return tokens
 }
 
 const parseFolderId = (folderUrl: string) => {
@@ -259,18 +270,39 @@ serve(async (req) => {
       )
     }
 
-    const accessToken = await getAccessToken()
+    const availableTokens = await getAvailableTokens()
+    let activeToken = availableTokens[0]
     const parsedFolderId = parseFolderId(body.folder_url)
-    const resolvedFolder = await resolveUploadFolder(accessToken, parsedFolderId)
+    let resolvedFolder: DriveFileMetadata
+
+    try {
+      resolvedFolder = await resolveUploadFolder(activeToken.token, parsedFolderId)
+    } catch (error) {
+      const fallback = availableTokens.find((t) => t.source !== activeToken.source)
+      const message = (error as Error).message || ''
+
+      if (!fallback || !message.includes('not visible to the active upload account')) {
+        throw error
+      }
+
+      activeToken = fallback
+      resolvedFolder = await resolveUploadFolder(activeToken.token, parsedFolderId)
+    }
 
     if (resolvedFolder.mimeType !== 'application/vnd.google-apps.folder') {
       throw new Error('Configured Drive link is not a folder. Please set a valid folder URL in Admin Tools.')
     }
 
-    if (!resolvedFolder.driveId) {
-      throw new Error(
-        'Configured folder is in My Drive (or not a Shared Drive folder). Set Admin Tools link to a Shared Drive folder URL.'
-      )
+    if (!resolvedFolder.driveId && activeToken.source === 'service_account') {
+      const oauthFallback = availableTokens.find((t) => t.source === 'oauth')
+      if (!oauthFallback) {
+        throw new Error(
+          'Configured folder is in My Drive (or not a Shared Drive folder). Set Admin Tools link to a Shared Drive folder URL, or configure OAuth secrets for My Drive uploads.'
+        )
+      }
+
+      activeToken = oauthFallback
+      resolvedFolder = await resolveUploadFolder(activeToken.token, parsedFolderId)
     }
 
     const folderId = resolvedFolder.id
@@ -302,7 +334,7 @@ serve(async (req) => {
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${activeToken.token}`,
           'Content-Type': `multipart/related; boundary=${boundary}`,
         },
         body: multipartBody,
