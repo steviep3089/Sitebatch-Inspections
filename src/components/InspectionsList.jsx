@@ -637,162 +637,138 @@ export default function InspectionsList() {
         {inspections.length === 0 ? (
           <p>No inspections found. Schedule your first inspection above.</p>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #ddd' }}>
-                <th style={{ textAlign: 'left', padding: '10px' }}>Asset ID</th>
-                <th style={{ textAlign: 'left', padding: '10px' }}>Asset Name</th>
-                <th style={{ textAlign: 'left', padding: '10px' }}>Inspection Type</th>
-                <th style={{ textAlign: 'left', padding: '10px' }}>Due Date</th>
-                <th style={{ textAlign: 'left', padding: '10px' }}>Status</th>
-                <th style={{ textAlign: 'left', padding: '10px' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inspections.map((inspection) => (
-                <tr 
-                  key={inspection.id} 
-                  style={{ borderBottom: '1px solid #eee', cursor: 'pointer' }}
-                  {(() => {
-                    let filtered = [];
-                    if (activeTab === 'all') {
-                      filtered = inspections.filter(i => i.status !== 'completed' && (!i.certs_received || i.certs_received === false));
-                    } else if (activeTab === 'completed') {
-                      filtered = inspections.filter(i => i.status === 'completed');
-                    } else if (activeTab === 'awaitingCerts') {
-                      filtered = inspections.filter(i => i.status === 'completed' && (!i.certs_received || i.certs_received === false));
-                    }
-                    if (filtered.length === 0) {
-                      return <p>No inspections found for this tab.</p>;
-                    }
-                    return (
-                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '2px solid #ddd' }}>
-                            <th style={{ textAlign: 'left', padding: '10px' }}>Asset ID</th>
-                            <th style={{ textAlign: 'left', padding: '10px' }}>Asset Name</th>
-                            <th style={{ textAlign: 'left', padding: '10px' }}>Inspection Type</th>
-                            <th style={{ textAlign: 'left', padding: '10px' }}>Due Date</th>
-                            <th style={{ textAlign: 'left', padding: '10px' }}>Status</th>
-                            <th style={{ textAlign: 'left', padding: '10px' }}>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filtered.map((inspection) => (
-                            <tr 
-                              key={inspection.id} 
-                              style={{ borderBottom: '1px solid #eee', cursor: 'pointer' }}
-                              onClick={() => setSelectedInspection(inspection)}
+          {(() => {
+            let filtered = [];
+            if (activeTab === 'all') {
+              filtered = inspections.filter(i => i.status !== 'completed' && (!i.certs_received || i.certs_received === false));
+            } else if (activeTab === 'completed') {
+              filtered = inspections.filter(i => i.status === 'completed');
+            } else if (activeTab === 'awaitingCerts') {
+              filtered = inspections.filter(i => i.status === 'completed' && (!i.certs_received || i.certs_received === false));
+            }
+            if (filtered.length === 0) {
+              return <p>No inspections found for this tab.</p>;
+            }
+            return (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #ddd' }}>
+                    <th style={{ textAlign: 'left', padding: '10px' }}>Asset ID</th>
+                    <th style={{ textAlign: 'left', padding: '10px' }}>Asset Name</th>
+                    <th style={{ textAlign: 'left', padding: '10px' }}>Inspection Type</th>
+                    <th style={{ textAlign: 'left', padding: '10px' }}>Due Date</th>
+                    <th style={{ textAlign: 'left', padding: '10px' }}>Status</th>
+                    <th style={{ textAlign: 'left', padding: '10px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((inspection) => (
+                    <tr 
+                      key={inspection.id} 
+                      style={{ borderBottom: '1px solid #eee', cursor: 'pointer' }}
+                      onClick={() => setSelectedInspection(inspection)}
+                    >
+                      <td style={{ padding: '10px' }}>{inspection.asset_items?.asset_id}</td>
+                      <td style={{ padding: '10px' }}>{inspection.asset_items?.name}</td>
+                      <td style={{ padding: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span>{inspection.inspection_types?.name}</span>
+                          {inspection.linked_group_id && (
+                            <span
+                              style={{
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                color: '#0f766e',
+                                background: '#e6fffb',
+                                border: '1px solid #99f6e4',
+                                padding: '2px 6px',
+                                borderRadius: '999px',
+                              }}
                             >
-                              <td style={{ padding: '10px' }}>{inspection.asset_items?.asset_id}</td>
-                              <td style={{ padding: '10px' }}>{inspection.asset_items?.name}</td>
-                              <td style={{ padding: '10px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                  <span>{inspection.inspection_types?.name}</span>
-                                  {inspection.linked_group_id && (
-                                    <span
-                                      style={{
-                                        fontSize: '0.7rem',
-                                        fontWeight: 600,
-                                        color: '#0f766e',
-                                        background: '#e6fffb',
-                                        border: '1px solid #99f6e4',
-                                        padding: '2px 6px',
-                                        borderRadius: '999px',
-                                      }}
-                                    >
-                                      Linked
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td style={{ padding: '10px' }}>
-                                {new Date(inspection.due_date).toLocaleDateString()}
-                              </td>
-                              <td style={{ padding: '10px' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                  <span className={`status-badge ${getStatusBadge(inspection)}`}>
-                                    {inspection.status.toUpperCase()}
-                                  </span>
-                                  {getDueLabel(inspection) && (
-                                    <span style={{ fontSize: '0.8rem', color: '#555' }}>
-                                      {getDueLabel(inspection)}
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td style={{ padding: '10px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  {inspection.status === 'pending' ? (
-                                    <button
-                                      className="btn btn-primary"
-                                      style={{ padding: '5px 10px', fontSize: '0.85rem' }}
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        setSelectedInspection(inspection)
-                                      }}
-                                    >
-                                      Mark Complete
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      disabled
-                                      onClick={(e) => e.stopPropagation()}
-                                      style={{
-                                        padding: '5px 10px',
-                                        fontSize: '0.85rem',
-                                        borderRadius: '999px',
-                                        border: 'none',
-                                        backgroundColor: '#DAA520',
-                                        color: '#fff',
-                                        fontWeight: 'bold',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        cursor: 'default',
-                                      }}
-                                    >
-                                      <span>Locked</span>
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      handleDeleteInspection(inspection.id)
-                                    }}
-                                    style={{
-                                      border: 'none',
-                                      background: 'transparent',
-                                      color: '#d9534f',
-                                      fontSize: '18px',
-                                      fontWeight: 'bold',
-                                      lineHeight: '1',
-                                      cursor: 'pointer',
-                                      padding: '0 6px',
-                                    }}
-                                    aria-label="Delete inspection"
-                                    title="Delete inspection"
-                                  >
-                                    x
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    );
-                  })()}
-        <InspectionChecklistModal
-          inspection={checklistInspection}
-          onClose={() => setChecklistInspection(null)}
-          onCreated={() => {
-            setChecklistInspection(null)
-            // Refresh inspections and checklist mapping so the
-            // View checklist button appears immediately
-            fetchData()
+                              Linked
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px' }}>
+                        {new Date(inspection.due_date).toLocaleDateString()}
+                      </td>
+                      <td style={{ padding: '10px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span className={`status-badge ${getStatusBadge(inspection)}`}>
+                            {inspection.status.toUpperCase()}
+                          </span>
+                          {getDueLabel(inspection) && (
+                            <span style={{ fontSize: '0.8rem', color: '#555' }}>
+                              {getDueLabel(inspection)}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {inspection.status === 'pending' ? (
+                            <button
+                              className="btn btn-primary"
+                              style={{ padding: '5px 10px', fontSize: '0.85rem' }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedInspection(inspection)
+                              }}
+                            >
+                              Mark Complete
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                padding: '5px 10px',
+                                fontSize: '0.85rem',
+                                borderRadius: '999px',
+                                border: 'none',
+                                backgroundColor: '#DAA520',
+                                color: '#fff',
+                                fontWeight: 'bold',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                cursor: 'default',
+                              }}
+                            >
+                              <span>Locked</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteInspection(inspection.id)
+                            }}
+                            style={{
+                              border: 'none',
+                              background: 'transparent',
+                              color: '#d9534f',
+                              fontSize: '18px',
+                              fontWeight: 'bold',
+                              lineHeight: '1',
+                              cursor: 'pointer',
+                              padding: '0 6px',
+                            }}
+                            aria-label="Delete inspection"
+                            title="Delete inspection"
+                          >
+                            x
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            );
+          })()}
           }}
         />
       )}
