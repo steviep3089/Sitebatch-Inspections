@@ -509,9 +509,9 @@ export default function InspectionsList() {
         return
       }
 
-      const folderUrl = uploadInspection.certs_link || uploadInspection.inspection_types?.google_drive_url
+      const folderUrl = uploadInspection.inspection_types?.google_drive_url
       if (!folderUrl) {
-        alert('No Google Drive folder link is configured for this inspection.')
+        alert('No Admin Tools Drive link is configured for this inspection type.')
         return
       }
 
@@ -556,7 +556,7 @@ export default function InspectionsList() {
           certs_received: true,
           waiting_on_certs: false,
           certs_na: false,
-          certs_link: uploadInspection.certs_link || folderUrl,
+          certs_link: folderUrl,
         })
         .eq('id', uploadInspection.id)
 
@@ -977,10 +977,9 @@ export default function InspectionsList() {
                 type="button"
                 className="btn btn-secondary"
                 onClick={() => {
-                  const certsUrl =
-                    uploadInspection.certs_link || uploadInspection.inspection_types?.google_drive_url
+                  const certsUrl = uploadInspection.inspection_types?.google_drive_url
                   if (!certsUrl) {
-                    alert('No certs folder link is configured for this inspection.')
+                    alert('No Admin Tools Drive link is configured for this inspection type.')
                     return
                   }
                   window.open(certsUrl, '_blank', 'noopener,noreferrer')
