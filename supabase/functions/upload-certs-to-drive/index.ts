@@ -77,7 +77,7 @@ const signJwt = async (serviceAccountEmail: string, privateKeyPem: string) => {
   return `${unsignedToken}.${encodedSignature}`
 }
 
-const getAccessToken = async () => {
+const getAccessTokenFromServiceAccount = async () => {
   const serviceAccountEmail = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL')
   const privateKeyRaw = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY')
 
@@ -103,6 +103,43 @@ const getAccessToken = async () => {
   }
 
   return tokenJson.access_token as string
+}
+
+const getAccessTokenFromRefreshToken = async () => {
+  const clientId = Deno.env.get('GOOGLE_OAUTH_CLIENT_ID')
+  const clientSecret = Deno.env.get('GOOGLE_OAUTH_CLIENT_SECRET')
+  const refreshToken = Deno.env.get('GOOGLE_OAUTH_REFRESH_TOKEN')
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    return null
+  }
+
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  })
+
+  const tokenJson = await tokenResponse.json()
+  if (!tokenResponse.ok || !tokenJson.access_token) {
+    throw new Error(tokenJson.error_description || tokenJson.error || 'Failed to obtain Google OAuth access token')
+  }
+
+  return tokenJson.access_token as string
+}
+
+const getAccessToken = async () => {
+  const oauthToken = await getAccessTokenFromRefreshToken()
+  if (oauthToken) {
+    return oauthToken
+  }
+
+  return await getAccessTokenFromServiceAccount()
 }
 
 const parseFolderId = (folderUrl: string) => {

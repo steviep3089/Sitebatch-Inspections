@@ -103,10 +103,22 @@ Additional secrets required for `upload-certs-to-drive`:
 - `GOOGLE_SERVICE_ACCOUNT_EMAIL`
 - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
 
+Optional OAuth secrets for uploading into a specific user-owned My Drive folder:
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET`
+- `GOOGLE_OAUTH_REFRESH_TOKEN`
+
+When OAuth secrets are present, `upload-certs-to-drive` will use OAuth first.
+If OAuth secrets are missing, it falls back to service account auth.
+
 Set them with:
 ```bash
 supabase secrets set GOOGLE_SERVICE_ACCOUNT_EMAIL="your-service-account@your-project.iam.gserviceaccount.com"
 supabase secrets set GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+
+supabase secrets set GOOGLE_OAUTH_CLIENT_ID="your-oauth-client-id.apps.googleusercontent.com"
+supabase secrets set GOOGLE_OAUTH_CLIENT_SECRET="your-oauth-client-secret"
+supabase secrets set GOOGLE_OAUTH_REFRESH_TOKEN="your-refresh-token"
 ```
 
 ## Testing Locally
