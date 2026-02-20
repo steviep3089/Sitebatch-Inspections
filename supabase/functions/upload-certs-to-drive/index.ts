@@ -191,7 +191,7 @@ serve(async (req) => {
     const multipartBody = concatBytes(metadataPart, filePartHeader, fileBytes, ending)
 
     const uploadResponse = await fetch(
-      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink',
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink,webContentLink',
       {
         method: 'POST',
         headers: {
@@ -205,7 +205,13 @@ serve(async (req) => {
     const uploadJson = await uploadResponse.json()
 
     if (!uploadResponse.ok) {
-      throw new Error(uploadJson?.error?.message || 'Google Drive upload failed')
+      const apiMessage = uploadJson?.error?.message || 'Google Drive upload failed'
+      if (apiMessage.includes('Service Accounts do not have storage quota')) {
+        throw new Error(
+          'Target folder is not in a Shared Drive. Move/use a Shared Drive folder and grant the service account access, then try again.'
+        )
+      }
+      throw new Error(apiMessage)
     }
 
     return new Response(
