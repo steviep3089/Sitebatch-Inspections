@@ -9,6 +9,7 @@ export default function Dashboard() {
     dueSoonInspections: 0,
     expiredItems: 0,
     dueSoonItems: 0,
+    awaitingCerts: 0,
   })
   const [upcomingInspections, setUpcomingInspections] = useState([])
   const [upcomingItems, setUpcomingItems] = useState([])
@@ -101,6 +102,13 @@ export default function Dashboard() {
         .lte('expiry_date', ninetyDaysFromNow)
         .order('expiry_date', { ascending: true })
 
+      // Fetch completed inspections missing certs
+      const { data: awaitingCertsData } = await supabase
+        .from('inspections')
+        .select('id')
+        .eq('status', 'completed')
+        .or('certs_received.eq.false,certs_received.is.null')
+
       setStats({
         totalAssets,
         activeAssets,
@@ -108,6 +116,7 @@ export default function Dashboard() {
         dueSoonInspections: dueSoonData?.length || 0,
         expiredItems: expiredItemsData?.length || 0,
         dueSoonItems: dueSoonItemsData?.length || 0,
+        awaitingCerts: awaitingCertsData?.length || 0,
       })
       setUpcomingInspections(upcomingData || [])
       setUpcomingItems(upcomingItemsData || [])
@@ -223,6 +232,10 @@ export default function Dashboard() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', marginBottom: '30px' }}>
+                <div className="card" style={{ cursor: 'pointer', padding: '14px 16px', background: '#e6f7ff', border: '1px solid #b3e5fc' }}>
+                  <h3 style={{ marginBottom: '8px', fontSize: '0.95rem', color: '#0077b6' }}>Awaiting Certs</h3>
+                  <p style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#0077b6' }}>{stats.awaitingCerts}</p>
+                </div>
         <div className="card" style={{ cursor: 'pointer', padding: '14px 16px' }} onClick={() => handleCardClick('assets')}>
           <h3 style={{ marginBottom: '8px', fontSize: '0.95rem' }}>Total Assets</h3>
           <p style={{ fontSize: '1.6rem', fontWeight: 'bold' }}>{stats.totalAssets}</p>

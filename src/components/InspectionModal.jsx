@@ -29,6 +29,7 @@ export default function InspectionModal({
   const [logs, setLogs] = useState([])
   const [logsLoading, setLogsLoading] = useState(false)
   const [logsError, setLogsError] = useState(null)
+      waiting_on_certs: false,
   const [logUsers, setLogUsers] = useState({})
   const [initialData, setInitialData] = useState(null)
 
@@ -48,6 +49,7 @@ export default function InspectionModal({
         next_inspection_na: inspection.next_inspection_na || false,
         defect_portal_actions: inspection.defect_portal_actions || false,
         defect_portal_na: inspection.defect_portal_na || false
+          waiting_on_certs: inspection.waiting_on_certs || false,
       }
       setFormData(initial)
       setInitialData(initial)
@@ -76,6 +78,10 @@ export default function InspectionModal({
     // Check 4: Date Completed must be entered
     const dateCompletedValid = !!formData.date_completed
 
+      // New logic: If waiting_on_certs is checked and certs_na and certs_received are not, allow completion but do not lock certs
+      if (formData.waiting_on_certs && !formData.certs_na && !formData.certs_received) {
+        return nextInspectionValid && defectPortalValid && dateCompletedValid
+      }
     return nextInspectionValid && certsValid && defectPortalValid && dateCompletedValid
   }
 
@@ -482,6 +488,25 @@ export default function InspectionModal({
         </div>
 
         <div style={{ marginBottom: '15px' }}>
+                  <div style={{ marginBottom: '15px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                      <input
+                        type="checkbox"
+                        id="waiting_on_certs_checkbox"
+                        checked={formData.waiting_on_certs}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            waiting_on_certs: e.target.checked,
+                            certs_received: false,
+                            certs_na: false,
+                          })
+                        }
+                        disabled={isCompleted}
+                      />
+                      Waiting on Certs
+                    </label>
+                  </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <input
