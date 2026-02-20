@@ -20,16 +20,16 @@ export default function InspectionModal({
     certs_received: false,
     certs_na: false,
     certs_link: '',
+    waiting_on_certs: false,
     next_inspection_date: '',
     next_inspection_na: false,
     defect_portal_actions: false,
-    defect_portal_na: false
+    defect_portal_na: false,
   })
   const [loading, setLoading] = useState(false)
   const [logs, setLogs] = useState([])
   const [logsLoading, setLogsLoading] = useState(false)
   const [logsError, setLogsError] = useState(null)
-      waiting_on_certs: false,
   const [logUsers, setLogUsers] = useState({})
   const [initialData, setInitialData] = useState(null)
 
@@ -45,11 +45,11 @@ export default function InspectionModal({
         certs_received: inspection.certs_received || false,
         certs_na: inspection.certs_na || false,
         certs_link: inspection.certs_link || '',
+        waiting_on_certs: inspection.waiting_on_certs || false,
         next_inspection_date: inspection.next_inspection_date || '',
         next_inspection_na: inspection.next_inspection_na || false,
         defect_portal_actions: inspection.defect_portal_actions || false,
-        defect_portal_na: inspection.defect_portal_na || false
-          waiting_on_certs: inspection.waiting_on_certs || false,
+        defect_portal_na: inspection.defect_portal_na || false,
       }
       setFormData(initial)
       setInitialData(initial)

@@ -50,6 +50,7 @@ export default function InspectionsList() {
           certs_received,
           certs_link,
           certs_na,
+          waiting_on_certs,
           defect_portal_actions,
           defect_portal_na,
           linked_group_id,
@@ -487,6 +488,23 @@ export default function InspectionsList() {
     return <div>Loading inspections...</div>
   }
 
+  let filteredInspections = []
+  if (activeTab === 'all') {
+    filteredInspections = inspections.filter(
+      (inspection) =>
+        inspection.status !== 'completed' &&
+        (!inspection.certs_received || inspection.certs_received === false)
+    )
+  } else if (activeTab === 'completed') {
+    filteredInspections = inspections.filter((inspection) => inspection.status === 'completed')
+  } else {
+    filteredInspections = inspections.filter(
+      (inspection) =>
+        inspection.status === 'completed' &&
+        (!inspection.certs_received || inspection.certs_received === false)
+    )
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -634,23 +652,10 @@ export default function InspectionsList() {
           <button className={activeTab === 'completed' ? 'btn btn-primary' : 'btn'} onClick={() => setActiveTab('completed')}>Completed Inspections</button>
           <button className={activeTab === 'awaitingCerts' ? 'btn btn-primary' : 'btn'} onClick={() => setActiveTab('awaitingCerts')}>Awaiting Certs</button>
         </div>
-        {inspections.length === 0 ? (
-          <p>No inspections found. Schedule your first inspection above.</p>
+        {filteredInspections.length === 0 ? (
+          <p>No inspections found for this tab.</p>
         ) : (
-          {(() => {
-            let filtered = [];
-            if (activeTab === 'all') {
-              filtered = inspections.filter(i => i.status !== 'completed' && (!i.certs_received || i.certs_received === false));
-            } else if (activeTab === 'completed') {
-              filtered = inspections.filter(i => i.status === 'completed');
-            } else if (activeTab === 'awaitingCerts') {
-              filtered = inspections.filter(i => i.status === 'completed' && (!i.certs_received || i.certs_received === false));
-            }
-            if (filtered.length === 0) {
-              return <p>No inspections found for this tab.</p>;
-            }
-            return (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #ddd' }}>
                     <th style={{ textAlign: 'left', padding: '10px' }}>Asset ID</th>
@@ -662,7 +667,7 @@ export default function InspectionsList() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((inspection) => (
+                  {filteredInspections.map((inspection) => (
                     <tr 
                       key={inspection.id} 
                       style={{ borderBottom: '1px solid #eee', cursor: 'pointer' }}
@@ -767,10 +772,34 @@ export default function InspectionsList() {
                   ))}
                 </tbody>
               </table>
-            );
-          })()}
-          }}
-        />
+          )}
+        </div>
+
+        {selectedInspection && (
+          <InspectionModal
+            inspection={selectedInspection}
+            onClose={() => setSelectedInspection(null)}
+            onUpdate={fetchData}
+            onOpenChecklist={(insp) => setChecklistInspection(insp)}
+            hasChecklist={!!inspectionChecklists[selectedInspection.id]}
+            checklistStatus={inspectionChecklists[selectedInspection.id]?.status}
+            onViewChecklist={() => {
+              const checklistId = inspectionChecklists[selectedInspection.id]?.id
+              if (!checklistId) return
+              setViewChecklist({ inspection: selectedInspection, checklistId })
+            }}
+          />
+        )}
+
+        {checklistInspection && (
+          <InspectionChecklistModal
+            inspection={checklistInspection}
+            onClose={() => setChecklistInspection(null)}
+            onCreated={() => {
+              setChecklistInspection(null)
+              fetchData()
+            }}
+          />
       )}
 
       {viewChecklist && (
