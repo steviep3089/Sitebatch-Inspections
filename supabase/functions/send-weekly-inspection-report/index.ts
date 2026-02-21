@@ -29,6 +29,35 @@ const startOfDay = (date: Date) => {
   return value
 }
 
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+
+const wrapForEmail = (value: string, maxLineLength = 48) => {
+  if (!value) return ''
+
+  const words = value.split(/\s+/).filter(Boolean)
+  const lines: string[] = []
+  let currentLine = ''
+
+  for (const word of words) {
+    const candidate = currentLine ? `${currentLine} ${word}` : word
+    if (candidate.length <= maxLineLength) {
+      currentLine = candidate
+    } else {
+      if (currentLine) lines.push(currentLine)
+      currentLine = word
+    }
+  }
+
+  if (currentLine) lines.push(currentLine)
+  return lines.map((line) => escapeHtml(line)).join('<br/>')
+}
+
 async function sendEmailToRecipients(recipients: string[], subject: string, html: string) {
   const host = Deno.env.get('SMTP_HOST') || 'smtp.gmail.com'
   const port = Number(Deno.env.get('SMTP_PORT') || '465')
@@ -201,7 +230,7 @@ serve(async (req) => {
       <tr>
         <td>${inspection.asset_items?.asset_id || 'N/A'}</td>
         <td>${inspection.asset_items?.name || 'N/A'}</td>
-        <td>${inspection.inspection_types?.name || 'N/A'}</td>
+        <td>${wrapForEmail(inspection.inspection_types?.name || 'N/A', 32)}</td>
         <td>${formatDate(inspection.due_date)}</td>
         <td>${inspection.status || 'N/A'}</td>
       </tr>
@@ -213,11 +242,11 @@ serve(async (req) => {
       return `
         <tr>
           <td>${inspection.asset_items?.asset_id || 'N/A'}</td>
-          <td>${inspection.asset_items?.name || 'N/A'}</td>
-          <td>${inspection.inspection_types?.name || 'N/A'}</td>
+          <td>${wrapForEmail(inspection.asset_items?.name || 'N/A', 20)}</td>
+          <td>${wrapForEmail(inspection.inspection_types?.name || 'N/A', 28)}</td>
           <td>${formatDate(inspection.due_date)}</td>
-          <td>${inspection.hold_reason || 'No comment provided'}</td>
-          <td>${placedBy}</td>
+          <td>${wrapForEmail(inspection.hold_reason || 'No comment provided', 44)}</td>
+          <td>${wrapForEmail(placedBy, 28)}</td>
         </tr>
       `
     }).join('')
@@ -237,8 +266,8 @@ serve(async (req) => {
       return `
         <tr>
           <td>${inspection.asset_items?.asset_id || 'N/A'}</td>
-          <td>${inspection.asset_items?.name || 'N/A'}</td>
-          <td>${inspection.inspection_types?.name || 'N/A'}</td>
+          <td>${wrapForEmail(inspection.asset_items?.name || 'N/A', 20)}</td>
+          <td>${wrapForEmail(inspection.inspection_types?.name || 'N/A', 28)}</td>
           <td>${formatDate(completedSource)}</td>
           <td>${daysSinceCompleted}</td>
         </tr>
@@ -246,7 +275,7 @@ serve(async (req) => {
     }).join('')
 
     const reportDate = new Date().toLocaleDateString('en-GB')
-    const tableStyle = 'width:100%;border-collapse:collapse;table-layout:fixed;margin:8px 0 22px 0;font-family:Arial,sans-serif;font-size:14px;line-height:1.4;'
+    const tableStyle = 'width:100%;border-collapse:collapse;margin:8px 0 24px 0;font-family:Arial,sans-serif;font-size:15px;line-height:1.55;'
     const headerCellStyle = 'padding:10px 8px;border:1px solid #d8d8d8;background:#f5f6f8;text-align:left;vertical-align:top;'
     const cellStyle = 'padding:10px 8px;border:1px solid #e1e1e1;text-align:left;vertical-align:top;white-space:normal;word-break:break-word;overflow-wrap:anywhere;'
     const sectionTitleStyle = 'margin:26px 0 10px 0;font-family:Arial,sans-serif;'
@@ -258,7 +287,7 @@ serve(async (req) => {
 
       <h3 style="${sectionTitleStyle}">1) Inspections due in the next 14 days (${(dueInspections || []).length})</h3>
       ${dueRowsHtml
-        ? `<table style="${tableStyle}">
+        ? `<table border="1" cellspacing="0" cellpadding="10" width="100%" style="${tableStyle}">
             <thead>
               <tr>
                 <th style="${headerCellStyle}width:12%;">Asset ID</th>
@@ -274,7 +303,7 @@ serve(async (req) => {
 
       <h3 style="${sectionTitleStyle}">2) Inspections on hold (${(onHoldInspections || []).length})</h3>
       ${onHoldRowsHtml
-        ? `<table style="${tableStyle}">
+        ? `<table border="1" cellspacing="0" cellpadding="10" width="100%" style="${tableStyle}">
             <thead>
               <tr>
                 <th style="${headerCellStyle}width:10%;">Asset ID</th>
@@ -291,7 +320,7 @@ serve(async (req) => {
 
       <h3 style="${sectionTitleStyle}">3) Waiting for certs (${(waitingCertsInspections || []).length})</h3>
       ${waitingRowsHtml
-        ? `<table style="${tableStyle}">
+        ? `<table border="1" cellspacing="0" cellpadding="10" width="100%" style="${tableStyle}">
             <thead>
               <tr>
                 <th style="${headerCellStyle}width:12%;">Asset ID</th>
