@@ -226,24 +226,34 @@ serve(async (req) => {
 
     if (waitingError) throw waitingError
 
-  const tableStyle = 'width:100%;border-collapse:collapse;table-layout:fixed;margin:10px 0 0 0;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;border:1px solid #d9d9d9;'
-  const headerCellStyle = 'padding:12px 14px;border:1px solid #d8d8d8;background:#f3f4f6;text-align:left;vertical-align:top;font-weight:700;'
-  const cellStyle = 'padding:12px 14px;border:1px solid #e1e1e1;text-align:left;vertical-align:top;white-space:normal;word-break:break-word;overflow-wrap:anywhere;'
+  const tableStyle = 'width:100%;border-collapse:collapse;margin:10px 0 0 0;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;'
+  const cardCellStyle = 'padding:14px 16px;border:1px solid #d8d8d8;background:#ffffff;'
+  const labelCellStyle = 'width:28%;padding:4px 0;font-weight:700;vertical-align:top;'
+  const valueCellStyle = 'width:72%;padding:4px 0;vertical-align:top;word-break:break-word;overflow-wrap:anywhere;'
   const sectionTitleStyle = 'margin:0 0 8px 0;font-family:Arial,sans-serif;'
   const sectionWrapStyle = 'margin:24px 0;padding:14px 14px 18px 14px;border:1px solid #e5e7eb;background:#ffffff;'
+  const cardSpacerRow = '<tr><td style="border:none;padding:0;height:12px;line-height:12px;font-size:0;">&nbsp;</td></tr>'
+
+    const detailRow = (label: string, value: string) => `
+      <tr>
+        <td style="${labelCellStyle}">${label}</td>
+        <td style="${valueCellStyle}">${value}</td>
+      </tr>
+    `
 
     const dueRowsHtml = (dueInspections || []).map((inspection: any) => `
       <tr>
-        <td width="11%" style="${cellStyle}">${inspection.asset_items?.asset_id || 'N/A'}</td>
-        <td width="2%" style="border:none;padding:0;">&nbsp;</td>
-        <td width="18%" style="${cellStyle}">${wrapForEmail(inspection.asset_items?.name || 'N/A', 20)}</td>
-        <td width="2%" style="border:none;padding:0;">&nbsp;</td>
-        <td width="37%" style="${cellStyle}">${wrapForEmail(inspection.inspection_types?.name || 'N/A', 32)}</td>
-        <td width="2%" style="border:none;padding:0;">&nbsp;</td>
-        <td width="14%" style="${cellStyle}">${formatDate(inspection.due_date)}</td>
-        <td width="2%" style="border:none;padding:0;">&nbsp;</td>
-        <td width="12%" style="${cellStyle}">${inspection.status || 'N/A'}</td>
+        <td style="${cardCellStyle}">
+          <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="100%" style="width:100%;">
+            ${detailRow('Asset ID', escapeHtml(inspection.asset_items?.asset_id || 'N/A'))}
+            ${detailRow('Asset Name', wrapForEmail(inspection.asset_items?.name || 'N/A', 70))}
+            ${detailRow('Inspection Type', wrapForEmail(inspection.inspection_types?.name || 'N/A', 70))}
+            ${detailRow('Due Date', escapeHtml(formatDate(inspection.due_date)))}
+            ${detailRow('Status', escapeHtml(inspection.status || 'N/A'))}
+          </table>
+        </td>
       </tr>
+      ${cardSpacerRow}
     `).join('')
 
     const onHoldRowsHtml = (onHoldInspections || []).map((inspection: any) => {
@@ -251,18 +261,18 @@ serve(async (req) => {
       const placedBy = logRow?.created_by ? (userEmailById[logRow.created_by] || 'Unknown user') : 'Unknown user'
       return `
         <tr>
-          <td width="8%" style="${cellStyle}">${inspection.asset_items?.asset_id || 'N/A'}</td>
-          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
-          <td width="12%" style="${cellStyle}">${wrapForEmail(inspection.asset_items?.name || 'N/A', 20)}</td>
-          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
-          <td width="18%" style="${cellStyle}">${wrapForEmail(inspection.inspection_types?.name || 'N/A', 28)}</td>
-          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
-          <td width="10%" style="${cellStyle}">${formatDate(inspection.due_date)}</td>
-          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
-          <td width="30%" style="${cellStyle}">${wrapForEmail(inspection.hold_reason || 'No comment provided', 44)}</td>
-          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
-          <td width="12%" style="${cellStyle}">${wrapForEmail(placedBy, 28)}</td>
+          <td style="${cardCellStyle}">
+            <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="100%" style="width:100%;">
+              ${detailRow('Asset ID', escapeHtml(inspection.asset_items?.asset_id || 'N/A'))}
+              ${detailRow('Asset Name', wrapForEmail(inspection.asset_items?.name || 'N/A', 70))}
+              ${detailRow('Inspection Type', wrapForEmail(inspection.inspection_types?.name || 'N/A', 70))}
+              ${detailRow('Due Date', escapeHtml(formatDate(inspection.due_date)))}
+              ${detailRow('Comment', wrapForEmail(inspection.hold_reason || 'No comment provided', 70))}
+              ${detailRow('Placed On Hold By', wrapForEmail(placedBy, 70))}
+            </table>
+          </td>
         </tr>
+        ${cardSpacerRow}
       `
     }).join('')
 
@@ -280,16 +290,17 @@ serve(async (req) => {
 
       return `
         <tr>
-          <td width="11%" style="${cellStyle}">${inspection.asset_items?.asset_id || 'N/A'}</td>
-          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
-          <td width="19%" style="${cellStyle}">${wrapForEmail(inspection.asset_items?.name || 'N/A', 20)}</td>
-          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
-          <td width="34%" style="${cellStyle}">${wrapForEmail(inspection.inspection_types?.name || 'N/A', 28)}</td>
-          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
-          <td width="14%" style="${cellStyle}">${formatDate(completedSource)}</td>
-          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
-          <td width="14%" style="${cellStyle}">${daysSinceCompleted}</td>
+          <td style="${cardCellStyle}">
+            <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="100%" style="width:100%;">
+              ${detailRow('Asset ID', escapeHtml(inspection.asset_items?.asset_id || 'N/A'))}
+              ${detailRow('Asset Name', wrapForEmail(inspection.asset_items?.name || 'N/A', 70))}
+              ${detailRow('Inspection Type', wrapForEmail(inspection.inspection_types?.name || 'N/A', 70))}
+              ${detailRow('Completed Date', escapeHtml(formatDate(completedSource)))}
+              ${detailRow('Days Since Completed', escapeHtml(daysSinceCompleted))}
+            </table>
+          </td>
         </tr>
+        ${cardSpacerRow}
       `
     }).join('')
 
@@ -305,20 +316,7 @@ serve(async (req) => {
       <div style="${sectionWrapStyle}">
       <h3 style="${sectionTitleStyle}">1) Inspections due in the next 14 days (${(dueInspections || []).length})</h3>
       ${dueRowsHtml
-        ? `<table border="1" cellspacing="0" cellpadding="10" width="100%" style="${tableStyle}">
-            <thead>
-              <tr>
-                <th width="11%" style="${headerCellStyle}">Asset ID</th>
-                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
-                <th width="18%" style="${headerCellStyle}">Asset Name</th>
-                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
-                <th width="37%" style="${headerCellStyle}">Inspection Type</th>
-                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
-                <th width="14%" style="${headerCellStyle}">Due Date</th>
-                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
-                <th width="12%" style="${headerCellStyle}">Status</th>
-              </tr>
-            </thead>
+        ? `<table border="0" cellspacing="0" cellpadding="0" width="100%" style="${tableStyle}">
             <tbody>${dueRowsHtml}</tbody>
           </table>`
         : '<p style="margin:8px 0 20px 0;">None.</p>'}
@@ -327,22 +325,7 @@ serve(async (req) => {
       <div style="${sectionWrapStyle}">
       <h3 style="${sectionTitleStyle}">2) Inspections on hold (${(onHoldInspections || []).length})</h3>
       ${onHoldRowsHtml
-        ? `<table border="1" cellspacing="0" cellpadding="10" width="100%" style="${tableStyle}">
-            <thead>
-              <tr>
-                <th width="8%" style="${headerCellStyle}">Asset ID</th>
-                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
-                <th width="12%" style="${headerCellStyle}">Asset Name</th>
-                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
-                <th width="18%" style="${headerCellStyle}">Inspection Type</th>
-                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
-                <th width="10%" style="${headerCellStyle}">Due Date</th>
-                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
-                <th width="30%" style="${headerCellStyle}">Comment</th>
-                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
-                <th width="12%" style="${headerCellStyle}">Placed On Hold By</th>
-              </tr>
-            </thead>
+        ? `<table border="0" cellspacing="0" cellpadding="0" width="100%" style="${tableStyle}">
             <tbody>${onHoldRowsHtml}</tbody>
           </table>`
         : '<p style="margin:8px 0 20px 0;">None.</p>'}
@@ -351,20 +334,7 @@ serve(async (req) => {
       <div style="${sectionWrapStyle}">
       <h3 style="${sectionTitleStyle}">3) Waiting for certs (${(waitingCertsInspections || []).length})</h3>
       ${waitingRowsHtml
-        ? `<table border="1" cellspacing="0" cellpadding="10" width="100%" style="${tableStyle}">
-            <thead>
-              <tr>
-                <th width="11%" style="${headerCellStyle}">Asset ID</th>
-                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
-                <th width="19%" style="${headerCellStyle}">Asset Name</th>
-                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
-                <th width="34%" style="${headerCellStyle}">Inspection Type</th>
-                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
-                <th width="14%" style="${headerCellStyle}">Completed Date</th>
-                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
-                <th width="14%" style="${headerCellStyle}">Days Since Completed</th>
-              </tr>
-            </thead>
+        ? `<table border="0" cellspacing="0" cellpadding="0" width="100%" style="${tableStyle}">
             <tbody>${waitingRowsHtml}</tbody>
           </table>`
         : '<p style="margin:8px 0 20px 0;">None.</p>'}
