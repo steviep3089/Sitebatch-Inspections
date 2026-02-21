@@ -246,9 +246,9 @@ serve(async (req) => {
     }).join('')
 
     const reportDate = new Date().toLocaleDateString('en-GB')
-    const tableStyle = 'width:100%;border-collapse:collapse;margin:8px 0 22px 0;font-family:Arial,sans-serif;font-size:14px;line-height:1.4;'
+    const tableStyle = 'width:100%;border-collapse:collapse;table-layout:fixed;margin:8px 0 22px 0;font-family:Arial,sans-serif;font-size:14px;line-height:1.4;'
     const headerCellStyle = 'padding:10px 8px;border:1px solid #d8d8d8;background:#f5f6f8;text-align:left;vertical-align:top;'
-    const cellStyle = 'padding:10px 8px;border:1px solid #e1e1e1;text-align:left;vertical-align:top;'
+    const cellStyle = 'padding:10px 8px;border:1px solid #e1e1e1;text-align:left;vertical-align:top;white-space:normal;word-break:break-word;overflow-wrap:anywhere;'
     const sectionTitleStyle = 'margin:26px 0 10px 0;font-family:Arial,sans-serif;'
 
     const html = `
@@ -261,11 +261,11 @@ serve(async (req) => {
         ? `<table style="${tableStyle}">
             <thead>
               <tr>
-                <th style="${headerCellStyle}">Asset ID</th>
+                <th style="${headerCellStyle}width:12%;">Asset ID</th>
                 <th style="${headerCellStyle}">Asset Name</th>
                 <th style="${headerCellStyle}">Inspection Type</th>
-                <th style="${headerCellStyle}">Due Date</th>
-                <th style="${headerCellStyle}">Status</th>
+                <th style="${headerCellStyle}width:14%;">Due Date</th>
+                <th style="${headerCellStyle}width:12%;">Status</th>
               </tr>
             </thead>
             <tbody>${dueRowsHtml.replaceAll('<td>', `<td style="${cellStyle}">`)}</tbody>
@@ -277,12 +277,12 @@ serve(async (req) => {
         ? `<table style="${tableStyle}">
             <thead>
               <tr>
-                <th style="${headerCellStyle}">Asset ID</th>
+                <th style="${headerCellStyle}width:10%;">Asset ID</th>
                 <th style="${headerCellStyle}">Asset Name</th>
                 <th style="${headerCellStyle}">Inspection Type</th>
-                <th style="${headerCellStyle}">Due Date</th>
-                <th style="${headerCellStyle}">Comment</th>
-                <th style="${headerCellStyle}">Placed On Hold By</th>
+                <th style="${headerCellStyle}width:12%;">Due Date</th>
+                <th style="${headerCellStyle}width:34%;">Comment</th>
+                <th style="${headerCellStyle}width:18%;">Placed On Hold By</th>
               </tr>
             </thead>
             <tbody>${onHoldRowsHtml.replaceAll('<td>', `<td style="${cellStyle}">`)}</tbody>
@@ -294,11 +294,11 @@ serve(async (req) => {
         ? `<table style="${tableStyle}">
             <thead>
               <tr>
-                <th style="${headerCellStyle}">Asset ID</th>
+                <th style="${headerCellStyle}width:12%;">Asset ID</th>
                 <th style="${headerCellStyle}">Asset Name</th>
                 <th style="${headerCellStyle}">Inspection Type</th>
-                <th style="${headerCellStyle}">Completed Date</th>
-                <th style="${headerCellStyle}">Days Since Completed</th>
+                <th style="${headerCellStyle}width:15%;">Completed Date</th>
+                <th style="${headerCellStyle}width:15%;">Days Since Completed</th>
               </tr>
             </thead>
             <tbody>${waitingRowsHtml.replaceAll('<td>', `<td style="${cellStyle}">`)}</tbody>
