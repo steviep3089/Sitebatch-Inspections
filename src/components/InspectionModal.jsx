@@ -162,8 +162,16 @@ export default function InspectionModal({
         throw new Error(responseBody?.error || 'Failed to send admin alert email')
       }
 
-      logInspectionAction('alert_sent', 'Manual admin reminder email triggered from inspection modal.')
-      alert('Admin alert email sent.')
+      const recipients = Array.isArray(responseBody?.recipients)
+        ? responseBody.recipients.filter(Boolean)
+        : []
+      const recipientText = recipients.length > 0 ? `\nSent to: ${recipients.join(', ')}` : ''
+
+      const logDetails = recipients.length > 0
+        ? `Manual admin reminder email triggered from inspection modal. Sent to: ${recipients.join(', ')}`
+        : 'Manual admin reminder email triggered from inspection modal.'
+      logInspectionAction('alert_sent', logDetails)
+      alert(`Admin alert email sent.${recipientText}`)
     } catch (error) {
       console.error('Error sending admin alert email:', error)
       alert('Error sending admin alert email: ' + (error.message || 'Unknown error'))
@@ -219,12 +227,16 @@ export default function InspectionModal({
         payload.created_by = currentUserId
       }
 
-      const { error } = await supabase
+      const { data: insertedLog, error } = await supabase
         .from('inspection_logs')
         .insert(payload)
+        .select('*')
+        .single()
 
       if (error) {
         console.error('Error logging inspection action:', error)
+      } else if (insertedLog) {
+        setLogs((prevLogs) => [...prevLogs, insertedLog])
       }
     } catch (error) {
       console.error('Error logging inspection action:', error)

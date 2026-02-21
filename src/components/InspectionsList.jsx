@@ -682,6 +682,32 @@ export default function InspectionsList() {
 
       if (updateError) throw updateError
 
+      try {
+        const { data: authData } = await supabase.auth.getUser()
+        const currentUserId = authData?.user?.id || null
+        const currentUserEmail = authData?.user?.email || null
+
+        const payload = {
+          inspection_id: uploadInspection.id,
+          action: 'cert_uploaded',
+          details: `${currentUserEmail || 'Unknown user'}: Certificate uploaded from Inspections list (${uploadFile.name}).`,
+        }
+
+        if (currentUserId) {
+          payload.created_by = currentUserId
+        }
+
+        const { error: logError } = await supabase
+          .from('inspection_logs')
+          .insert(payload)
+
+        if (logError) {
+          console.error('Error logging certificate upload:', logError)
+        }
+      } catch (logError) {
+        console.error('Error logging certificate upload:', logError)
+      }
+
       alert('Certificate uploaded successfully.')
       setUploadInspection(null)
       setUploadFile(null)

@@ -19,6 +19,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+function getEmailRecipients() {
+  const toRaw = Deno.env.get('SMTP_TO') || ''
+  return toRaw
+    .split(',')
+    .map((r) => r.trim().replace(/[.;,]+$/, ''))
+    .filter(Boolean)
+}
+
 async function sendEmail(subject: string, html: string) {
   // SMTP configuration (Gmail-friendly defaults)
   const host = Deno.env.get('SMTP_HOST') || 'smtp.gmail.com'
@@ -26,26 +34,21 @@ async function sendEmail(subject: string, html: string) {
   const username = Deno.env.get('SMTP_USERNAME')
   const password = Deno.env.get('SMTP_PASSWORD')
   const from = Deno.env.get('SMTP_FROM') || username || ''
-  const toRaw = Deno.env.get('SMTP_TO')
+  const to = getEmailRecipients()
 
-  if (!username || !password || !from || !toRaw) {
+  if (!username || !password || !from || to.length === 0) {
     console.warn('SMTP env vars missing; logging email instead of sending.', {
       host,
       port,
       hasUsername: !!username,
       hasPassword: !!password,
       from,
-      hasTo: !!toRaw,
+      hasTo: to.length > 0,
     })
     console.log('Email to send (subject):', subject)
     console.log('Email to send (html):', html)
-    return
+    return to
   }
-
-  const to = toRaw
-    .split(',')
-    .map((r) => r.trim().replace(/[.;,]+$/, '')) // strip accidental trailing punctuation
-    .filter(Boolean)
 
   const client = new SmtpClient()
 
@@ -77,6 +80,8 @@ async function sendEmail(subject: string, html: string) {
       // ignore close errors
     }
   }
+
+  return to
 }
 
 serve(async (req) => {
@@ -188,12 +193,13 @@ serve(async (req) => {
           </p>
         `
 
-        await sendEmail(emailSubject, emailBody)
+        const recipients = await sendEmail(emailSubject, emailBody)
 
         emailsSent.push({
           inspection_id: inspection.id,
           days_before: null,
           subject: emailSubject,
+          recipients,
         })
 
         continue
@@ -381,6 +387,10 @@ serve(async (req) => {
         success: true,
         remindersCreated: remindersCreated.length,
         emailsSent: emailsSent.length,
+        recipients:
+          triggerType === 'manual_alert'
+            ? (emailsSent[0]?.recipients || getEmailRecipients())
+            : undefined,
         details: { remindersCreated, emailsSent }
       }),
       {
