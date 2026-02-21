@@ -24,6 +24,7 @@ export default function InspectionsList() {
   const [formData, setFormData] = useState({
     inspection_type_id: '',
     due_date: '',
+    frequency: '',
     status: 'pending',
     notes: '',
     assigned_to: '',
@@ -185,15 +186,50 @@ export default function InspectionsList() {
       const linkedGroupId =
         selectedAssetIds.length > 1 ? createLinkedGroupId() : null
 
-      const payloads = selectedAssetIds.map((assetId) => ({
-        asset_id: assetId,
-        inspection_type_id: inspectionTypeId,
-        due_date: formData.due_date || null,
-        status: formData.status,
-        notes: formData.notes || null,
-        assigned_to: formData.assigned_to || null,
-        linked_group_id: linkedGroupId,
-      }))
+      const frequencyConfig = {
+        monthly: { months: 1, futureCount: 6 },
+        quarterly: { months: 3, futureCount: 3 },
+        six_monthly: { months: 6, futureCount: 2 },
+        yearly: { months: 12, futureCount: 1 },
+        two_yearly: { months: 24, futureCount: 1 },
+      }
+
+      const addMonths = (date, monthsToAdd) => {
+        const next = new Date(date)
+        next.setMonth(next.getMonth() + monthsToAdd)
+        return next
+      }
+
+      const formatDateForDb = (date) => {
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      }
+
+      const baseDueDate = new Date(`${formData.due_date}T00:00:00`)
+      const dueDates = [formatDateForDb(baseDueDate)]
+
+      const selectedFrequency = frequencyConfig[formData.frequency]
+      if (selectedFrequency) {
+        for (let index = 1; index <= selectedFrequency.futureCount; index += 1) {
+          const futureDate = addMonths(baseDueDate, selectedFrequency.months * index)
+          dueDates.push(formatDateForDb(futureDate))
+        }
+      }
+
+      const payloads = dueDates.flatMap((dueDate) => {
+        const perDateLinkedGroupId = selectedAssetIds.length > 1 ? createLinkedGroupId() : linkedGroupId
+        return selectedAssetIds.map((assetId) => ({
+          asset_id: assetId,
+          inspection_type_id: inspectionTypeId,
+          due_date: dueDate,
+          status: formData.status,
+          notes: formData.notes || null,
+          assigned_to: formData.assigned_to || null,
+          linked_group_id: perDateLinkedGroupId,
+        }))
+      })
 
       const { data: newInspections, error } = await supabase
         .from('inspections')
@@ -251,6 +287,7 @@ export default function InspectionsList() {
       setFormData({
         inspection_type_id: '',
         due_date: '',
+        frequency: '',
         status: 'pending',
         notes: '',
         assigned_to: '',
@@ -720,6 +757,21 @@ export default function InspectionsList() {
                 onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
                 required
               />
+            </div>
+            <div className="form-group">
+              <label htmlFor="frequency">Frequency (Optional)</label>
+              <select
+                id="frequency"
+                value={formData.frequency}
+                onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
+              >
+                <option value="">One-off only</option>
+                <option value="monthly">Monthly (next 6)</option>
+                <option value="quarterly">Quarterly (next 3)</option>
+                <option value="six_monthly">6 Monthly (next 2)</option>
+                <option value="yearly">Yearly (next 1)</option>
+                <option value="two_yearly">Two Yearly (next 1)</option>
+              </select>
             </div>
             <div className="form-group">
               <label htmlFor="notes">Notes</label>
