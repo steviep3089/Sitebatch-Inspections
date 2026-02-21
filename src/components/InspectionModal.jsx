@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabaseClient'
 
 export default function InspectionModal({
@@ -37,6 +37,7 @@ export default function InspectionModal({
   const [repeatPromptShown, setRepeatPromptShown] = useState(false)
   const [nextInspectionFrequency, setNextInspectionFrequency] = useState('')
   const [sendingAlert, setSendingAlert] = useState(false)
+  const holdReasonRef = useRef(null)
 
   const createRecurringGroupId = () => {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -647,12 +648,36 @@ export default function InspectionModal({
           {!isCompleted && (
             <button
               type="button"
-              onClick={() =>
-                setFormData((prev) => ({
-                  ...prev,
-                  status: prev.status === 'on_hold' ? 'pending' : 'on_hold',
-                }))
-              }
+              onClick={() => {
+                if (isOnHold) {
+                  setFormData((prev) => ({ ...prev, status: 'pending' }))
+                  return
+                }
+
+                const enteredReason = window.prompt(
+                  'Enter on hold comment (required):',
+                  formData.hold_reason || ''
+                )
+
+                if (enteredReason === null) return
+
+                const trimmedReason = enteredReason.trim()
+                if (trimmedReason) {
+                  setFormData((prev) => ({
+                    ...prev,
+                    status: 'on_hold',
+                    hold_reason: trimmedReason,
+                  }))
+                  return
+                }
+
+                setFormData((prev) => ({ ...prev, status: 'on_hold' }))
+                setTimeout(() => {
+                  holdReasonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  holdReasonRef.current?.focus()
+                }, 0)
+                alert('Please fill out the On hold comment section below before saving.')
+              }}
               style={{
                 backgroundColor: '#c62828',
                 color: '#fff',
@@ -906,6 +931,7 @@ export default function InspectionModal({
           <div className="form-group">
             <label htmlFor="hold_reason">On hold comment *</label>
             <textarea
+              ref={holdReasonRef}
               id="hold_reason"
               rows="3"
               value={formData.hold_reason}
