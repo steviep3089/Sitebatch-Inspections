@@ -58,6 +58,7 @@ export default function InspectionsList() {
           recurrence_group_id,
           recurrence_sequence,
           recurrence_frequency_months,
+          hold_reason,
           defect_portal_actions,
           defect_portal_na,
           linked_group_id,
@@ -542,8 +543,38 @@ export default function InspectionsList() {
     }
   }
 
+  const handleDisableRecurring = async (inspection) => {
+    try {
+      const confirmed = window.confirm('Do you want to disable recurring inspections?')
+      if (!confirmed) return
+
+      let query = supabase
+        .from('inspections')
+        .update({
+          recurrence_group_id: null,
+          recurrence_sequence: null,
+          recurrence_frequency_months: null,
+        })
+
+      if (inspection.recurrence_group_id) {
+        query = query.eq('recurrence_group_id', inspection.recurrence_group_id)
+      } else {
+        query = query.eq('id', inspection.id)
+      }
+
+      const { error } = await query
+      if (error) throw error
+
+      fetchData()
+    } catch (error) {
+      console.error('Error disabling recurring inspections:', error)
+      alert('Error disabling recurring inspections: ' + error.message)
+    }
+  }
+
   const getStatusBadge = (inspection) => {
     if (inspection.status === 'completed') return 'status-compliant'
+    if (inspection.status === 'on_hold') return 'status-overdue'
     
     const today = new Date()
     const dueDate = new Date(inspection.due_date)
@@ -669,7 +700,9 @@ export default function InspectionsList() {
 
   let filteredInspections = []
   if (activeTab === 'all') {
-    filteredInspections = inspections.filter((inspection) => inspection.status !== 'completed')
+    filteredInspections = inspections.filter(
+      (inspection) => inspection.status !== 'completed' && inspection.status !== 'on_hold'
+    )
   } else if (activeTab === 'completed') {
     filteredInspections = inspections.filter(
       (inspection) =>
@@ -677,6 +710,8 @@ export default function InspectionsList() {
         !inspection.waiting_on_certs &&
         (inspection.certs_received || inspection.certs_na)
     )
+  } else if (activeTab === 'onHold') {
+    filteredInspections = inspections.filter((inspection) => inspection.status === 'on_hold')
   } else {
     filteredInspections = inspections.filter(
       (inspection) =>
@@ -845,6 +880,7 @@ export default function InspectionsList() {
         <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
           <button className={activeTab === 'all' ? 'btn btn-primary' : 'btn'} onClick={() => setActiveTab('all')}>Inspections Due</button>
           <button className={activeTab === 'completed' ? 'btn btn-primary' : 'btn'} onClick={() => setActiveTab('completed')}>Completed Inspections</button>
+          <button className={activeTab === 'onHold' ? 'btn btn-primary' : 'btn'} onClick={() => setActiveTab('onHold')}>Inspections on hold</button>
           <button className={activeTab === 'awaitingCerts' ? 'btn btn-primary' : 'btn'} onClick={() => setActiveTab('awaitingCerts')}>Awaiting Certs</button>
         </div>
         {filteredInspections.length === 0 ? (
@@ -887,6 +923,28 @@ export default function InspectionsList() {
                             >
                               Linked
                             </span>
+                          )}
+                          {inspection.recurrence_group_id && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDisableRecurring(inspection)
+                              }}
+                              style={{
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                color: '#1d4ed8',
+                                background: '#eff6ff',
+                                border: '1px solid #93c5fd',
+                                padding: '2px 6px',
+                                borderRadius: '999px',
+                                cursor: 'pointer',
+                              }}
+                              title="Disable recurring inspections"
+                            >
+                              Recurring
+                            </button>
                           )}
                         </div>
                       </td>

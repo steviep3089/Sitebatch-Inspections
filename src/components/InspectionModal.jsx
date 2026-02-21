@@ -15,6 +15,7 @@ export default function InspectionModal({
     completed_date: '',
     date_completed: '',
     status: 'pending',
+    hold_reason: '',
     notes: '',
     assigned_to: '',
     certs_received: false,
@@ -51,6 +52,7 @@ export default function InspectionModal({
         completed_date: inspection.completed_date || '',
         date_completed: inspection.date_completed || '',
         status: inspection.status || 'pending',
+        hold_reason: inspection.hold_reason || '',
         notes: inspection.notes || '',
         assigned_to: inspection.assigned_to || '',
         certs_received: inspection.certs_received || false,
@@ -447,6 +449,11 @@ export default function InspectionModal({
       // If for some reason we don't have a baseline, fall back to generic logging
       const baseline = initialData
 
+      if (formData.status === 'on_hold' && !formData.hold_reason?.trim()) {
+        alert('On hold comment is required before saving.')
+        return
+      }
+
       // Clean up empty date strings - convert to null
       const cleanedData = {
         ...formData,
@@ -456,6 +463,7 @@ export default function InspectionModal({
         next_inspection_date: formData.next_inspection_date || null,
         certs_link: formData.certs_link || null,
         assigned_to: formData.assigned_to || null,
+        hold_reason: formData.status === 'on_hold' ? formData.hold_reason?.trim() || null : null,
         notes: formData.notes || null
       }
 
@@ -467,6 +475,8 @@ export default function InspectionModal({
       }
 
       const fieldMeta = [
+        { key: 'status', label: 'Status' },
+        { key: 'hold_reason', label: 'On hold reason' },
         { key: 'assigned_to', label: 'Assigned to' },
         { key: 'due_date', label: 'Due date' },
         { key: 'date_completed', label: 'Date completed' },
@@ -498,6 +508,17 @@ export default function InspectionModal({
         .eq('id', inspection.id)
 
       if (error) throw error
+
+      if (baseline && baseline.status !== formData.status) {
+        if (formData.status === 'on_hold') {
+          logInspectionAction(
+            'on_hold',
+            `Inspection placed on hold. Reason: ${formData.hold_reason?.trim() || 'No reason provided.'}`
+          )
+        } else if (baseline.status === 'on_hold') {
+          logInspectionAction('resumed', `Inspection removed from hold. New status: ${formData.status}.`)
+        }
+      }
 
       // Log only the fields that actually changed (if any)
       if (baseline && changedDescriptions.length > 0) {
@@ -549,6 +570,7 @@ export default function InspectionModal({
   if (!inspection) return null
 
   const isCompleted = inspection.status === 'completed'
+  const isOnHold = formData.status === 'on_hold'
 
   return (
     <div 
@@ -622,6 +644,28 @@ export default function InspectionModal({
               </span>
             )}
           </div>
+          {!isCompleted && (
+            <button
+              type="button"
+              onClick={() =>
+                setFormData((prev) => ({
+                  ...prev,
+                  status: prev.status === 'on_hold' ? 'pending' : 'on_hold',
+                }))
+              }
+              style={{
+                backgroundColor: '#c62828',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '999px',
+                padding: '6px 12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              {isOnHold ? 'ON HOLD' : 'Put on hold'}
+            </button>
+          )}
         </div>
         {/* Details section */}
         <div className="form-group">
@@ -857,12 +901,27 @@ export default function InspectionModal({
           />
         </div>
 
+        {isOnHold && (
+          <div className="form-group">
+            <label htmlFor="hold_reason">On hold comment *</label>
+            <textarea
+              id="hold_reason"
+              rows="3"
+              value={formData.hold_reason}
+              onChange={(e) => setFormData({ ...formData, hold_reason: e.target.value })}
+              disabled={isCompleted}
+              placeholder="Required reason for putting this inspection on hold"
+            />
+          </div>
+        )}
+
         <div className="form-group">
           <label>Current Status</label>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
             <span 
               className={`status-badge ${
                 formData.status === 'completed' ? 'status-compliant' : 
+                formData.status === 'on_hold' ? 'status-overdue' :
                 formData.status === 'overdue' ? 'status-overdue' : 
                 'status-due-soon'
               }`}
