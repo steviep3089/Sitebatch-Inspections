@@ -580,18 +580,19 @@ export default function InspectionsList() {
 
   let filteredInspections = []
   if (activeTab === 'all') {
+    filteredInspections = inspections.filter((inspection) => inspection.status !== 'completed')
+  } else if (activeTab === 'completed') {
     filteredInspections = inspections.filter(
       (inspection) =>
-        inspection.status !== 'completed' &&
-        (!inspection.certs_received || inspection.certs_received === false)
+        inspection.status === 'completed' &&
+        !inspection.waiting_on_certs &&
+        (inspection.certs_received || inspection.certs_na)
     )
-  } else if (activeTab === 'completed') {
-    filteredInspections = inspections.filter((inspection) => inspection.status === 'completed')
   } else {
     filteredInspections = inspections.filter(
       (inspection) =>
         inspection.status === 'completed' &&
-        (!inspection.certs_received || inspection.certs_received === false)
+        (inspection.waiting_on_certs || (!inspection.certs_received && !inspection.certs_na))
     )
   }
 
