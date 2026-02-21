@@ -275,66 +275,95 @@ serve(async (req) => {
     }).join('')
 
     const reportDate = new Date().toLocaleDateString('en-GB')
-    const tableStyle = 'width:100%;border-collapse:collapse;table-layout:fixed;margin:8px 0 24px 0;font-family:Arial,sans-serif;font-size:15px;line-height:1.55;'
-    const headerCellStyle = 'padding:10px 8px;border:1px solid #d8d8d8;background:#f5f6f8;text-align:left;vertical-align:top;'
-    const cellStyle = 'padding:10px 8px;border:1px solid #e1e1e1;text-align:left;vertical-align:top;white-space:normal;word-break:break-word;overflow-wrap:anywhere;'
-    const sectionTitleStyle = 'margin:26px 0 10px 0;font-family:Arial,sans-serif;'
+    const tableStyle = 'width:100%;border-collapse:collapse;table-layout:fixed;margin:10px 0 0 0;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;border:1px solid #d9d9d9;'
+    const headerCellStyle = 'padding:12px 14px;border:1px solid #d8d8d8;background:#f3f4f6;text-align:left;vertical-align:top;font-weight:700;'
+    const cellStyle = 'padding:12px 14px;border:1px solid #e1e1e1;text-align:left;vertical-align:top;white-space:normal;word-break:break-word;overflow-wrap:anywhere;'
+    const sectionTitleStyle = 'margin:0 0 8px 0;font-family:Arial,sans-serif;'
+    const sectionWrapStyle = 'margin:24px 0;padding:14px 14px 18px 14px;border:1px solid #e5e7eb;background:#ffffff;'
 
     const html = `
       <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="100%" style="width:100%;font-family:Arial,sans-serif;color:#1f2937;">
       <tr>
-      <td style="padding:0 8px 12px 8px;">
+      <td style="padding:0 12px 14px 12px;">
       <h2 style="margin:0 0 12px 0;">Weekly Sitebatch Inspection Report</h2>
       <p style="margin:0 0 18px 0;"><strong>Report date:</strong> ${reportDate}</p>
 
+      <div style="${sectionWrapStyle}">
       <h3 style="${sectionTitleStyle}">1) Inspections due in the next 14 days (${(dueInspections || []).length})</h3>
       ${dueRowsHtml
         ? `<table border="1" cellspacing="0" cellpadding="10" width="100%" style="${tableStyle}">
+            <colgroup>
+              <col style="width:12%;" />
+              <col style="width:22%;" />
+              <col style="width:34%;" />
+              <col style="width:16%;" />
+              <col style="width:16%;" />
+            </colgroup>
             <thead>
               <tr>
-                <th style="${headerCellStyle}width:12%;">Asset ID</th>
+                <th style="${headerCellStyle}">Asset ID</th>
                 <th style="${headerCellStyle}">Asset Name</th>
                 <th style="${headerCellStyle}">Inspection Type</th>
-                <th style="${headerCellStyle}width:14%;">Due Date</th>
-                <th style="${headerCellStyle}width:12%;">Status</th>
+                <th style="${headerCellStyle}">Due Date</th>
+                <th style="${headerCellStyle}">Status</th>
               </tr>
             </thead>
             <tbody>${dueRowsHtml.replaceAll('<td>', `<td style="${cellStyle}">`)}</tbody>
           </table>`
         : '<p style="margin:8px 0 20px 0;">None.</p>'}
+      </div>
 
+      <div style="${sectionWrapStyle}">
       <h3 style="${sectionTitleStyle}">2) Inspections on hold (${(onHoldInspections || []).length})</h3>
       ${onHoldRowsHtml
         ? `<table border="1" cellspacing="0" cellpadding="10" width="100%" style="${tableStyle}">
+            <colgroup>
+              <col style="width:9%;" />
+              <col style="width:14%;" />
+              <col style="width:19%;" />
+              <col style="width:11%;" />
+              <col style="width:31%;" />
+              <col style="width:16%;" />
+            </colgroup>
             <thead>
               <tr>
-                <th style="${headerCellStyle}width:10%;">Asset ID</th>
+                <th style="${headerCellStyle}">Asset ID</th>
                 <th style="${headerCellStyle}">Asset Name</th>
                 <th style="${headerCellStyle}">Inspection Type</th>
-                <th style="${headerCellStyle}width:12%;">Due Date</th>
-                <th style="${headerCellStyle}width:34%;">Comment</th>
-                <th style="${headerCellStyle}width:18%;">Placed On Hold By</th>
+                <th style="${headerCellStyle}">Due Date</th>
+                <th style="${headerCellStyle}">Comment</th>
+                <th style="${headerCellStyle}">Placed On Hold By</th>
               </tr>
             </thead>
             <tbody>${onHoldRowsHtml.replaceAll('<td>', `<td style="${cellStyle}">`)}</tbody>
           </table>`
         : '<p style="margin:8px 0 20px 0;">None.</p>'}
+      </div>
 
+      <div style="${sectionWrapStyle}">
       <h3 style="${sectionTitleStyle}">3) Waiting for certs (${(waitingCertsInspections || []).length})</h3>
       ${waitingRowsHtml
         ? `<table border="1" cellspacing="0" cellpadding="10" width="100%" style="${tableStyle}">
+            <colgroup>
+              <col style="width:12%;" />
+              <col style="width:21%;" />
+              <col style="width:32%;" />
+              <col style="width:17%;" />
+              <col style="width:18%;" />
+            </colgroup>
             <thead>
               <tr>
-                <th style="${headerCellStyle}width:12%;">Asset ID</th>
+                <th style="${headerCellStyle}">Asset ID</th>
                 <th style="${headerCellStyle}">Asset Name</th>
                 <th style="${headerCellStyle}">Inspection Type</th>
-                <th style="${headerCellStyle}width:15%;">Completed Date</th>
-                <th style="${headerCellStyle}width:15%;">Days Since Completed</th>
+                <th style="${headerCellStyle}">Completed Date</th>
+                <th style="${headerCellStyle}">Days Since Completed</th>
               </tr>
             </thead>
             <tbody>${waitingRowsHtml.replaceAll('<td>', `<td style="${cellStyle}">`)}</tbody>
           </table>`
         : '<p style="margin:8px 0 20px 0;">None.</p>'}
+      </div>
       </td>
       </tr>
       </table>
