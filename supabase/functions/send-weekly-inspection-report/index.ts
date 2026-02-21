@@ -275,13 +275,15 @@ serve(async (req) => {
     }).join('')
 
     const reportDate = new Date().toLocaleDateString('en-GB')
-    const tableStyle = 'width:100%;border-collapse:collapse;margin:8px 0 24px 0;font-family:Arial,sans-serif;font-size:15px;line-height:1.55;'
+    const tableStyle = 'width:100%;border-collapse:collapse;table-layout:fixed;margin:8px 0 24px 0;font-family:Arial,sans-serif;font-size:15px;line-height:1.55;'
     const headerCellStyle = 'padding:10px 8px;border:1px solid #d8d8d8;background:#f5f6f8;text-align:left;vertical-align:top;'
     const cellStyle = 'padding:10px 8px;border:1px solid #e1e1e1;text-align:left;vertical-align:top;white-space:normal;word-break:break-word;overflow-wrap:anywhere;'
     const sectionTitleStyle = 'margin:26px 0 10px 0;font-family:Arial,sans-serif;'
 
     const html = `
-      <div style="font-family:Arial,sans-serif;color:#1f2937;max-width:1100px;">
+      <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="100%" style="width:100%;font-family:Arial,sans-serif;color:#1f2937;">
+      <tr>
+      <td style="padding:0 8px 12px 8px;">
       <h2 style="margin:0 0 12px 0;">Weekly Sitebatch Inspection Report</h2>
       <p style="margin:0 0 18px 0;"><strong>Report date:</strong> ${reportDate}</p>
 
@@ -333,7 +335,9 @@ serve(async (req) => {
             <tbody>${waitingRowsHtml.replaceAll('<td>', `<td style="${cellStyle}">`)}</tbody>
           </table>`
         : '<p style="margin:8px 0 20px 0;">None.</p>'}
-      </div>
+      </td>
+      </tr>
+      </table>
     `
 
     const subject = `Weekly Inspection Report - ${reportDate}`
