@@ -228,11 +228,15 @@ serve(async (req) => {
 
     const dueRowsHtml = (dueInspections || []).map((inspection: any) => `
       <tr>
-        <td>${inspection.asset_items?.asset_id || 'N/A'}</td>
-        <td>${inspection.asset_items?.name || 'N/A'}</td>
-        <td>${wrapForEmail(inspection.inspection_types?.name || 'N/A', 32)}</td>
-        <td>${formatDate(inspection.due_date)}</td>
-        <td>${inspection.status || 'N/A'}</td>
+        <td width="11%" style="${cellStyle}">${inspection.asset_items?.asset_id || 'N/A'}</td>
+        <td width="2%" style="border:none;padding:0;">&nbsp;</td>
+        <td width="18%" style="${cellStyle}">${wrapForEmail(inspection.asset_items?.name || 'N/A', 20)}</td>
+        <td width="2%" style="border:none;padding:0;">&nbsp;</td>
+        <td width="37%" style="${cellStyle}">${wrapForEmail(inspection.inspection_types?.name || 'N/A', 32)}</td>
+        <td width="2%" style="border:none;padding:0;">&nbsp;</td>
+        <td width="14%" style="${cellStyle}">${formatDate(inspection.due_date)}</td>
+        <td width="2%" style="border:none;padding:0;">&nbsp;</td>
+        <td width="12%" style="${cellStyle}">${inspection.status || 'N/A'}</td>
       </tr>
     `).join('')
 
@@ -241,12 +245,17 @@ serve(async (req) => {
       const placedBy = logRow?.created_by ? (userEmailById[logRow.created_by] || 'Unknown user') : 'Unknown user'
       return `
         <tr>
-          <td>${inspection.asset_items?.asset_id || 'N/A'}</td>
-          <td>${wrapForEmail(inspection.asset_items?.name || 'N/A', 20)}</td>
-          <td>${wrapForEmail(inspection.inspection_types?.name || 'N/A', 28)}</td>
-          <td>${formatDate(inspection.due_date)}</td>
-          <td>${wrapForEmail(inspection.hold_reason || 'No comment provided', 44)}</td>
-          <td>${wrapForEmail(placedBy, 28)}</td>
+          <td width="8%" style="${cellStyle}">${inspection.asset_items?.asset_id || 'N/A'}</td>
+          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
+          <td width="12%" style="${cellStyle}">${wrapForEmail(inspection.asset_items?.name || 'N/A', 20)}</td>
+          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
+          <td width="18%" style="${cellStyle}">${wrapForEmail(inspection.inspection_types?.name || 'N/A', 28)}</td>
+          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
+          <td width="10%" style="${cellStyle}">${formatDate(inspection.due_date)}</td>
+          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
+          <td width="30%" style="${cellStyle}">${wrapForEmail(inspection.hold_reason || 'No comment provided', 44)}</td>
+          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
+          <td width="12%" style="${cellStyle}">${wrapForEmail(placedBy, 28)}</td>
         </tr>
       `
     }).join('')
@@ -265,11 +274,15 @@ serve(async (req) => {
 
       return `
         <tr>
-          <td>${inspection.asset_items?.asset_id || 'N/A'}</td>
-          <td>${wrapForEmail(inspection.asset_items?.name || 'N/A', 20)}</td>
-          <td>${wrapForEmail(inspection.inspection_types?.name || 'N/A', 28)}</td>
-          <td>${formatDate(completedSource)}</td>
-          <td>${daysSinceCompleted}</td>
+          <td width="11%" style="${cellStyle}">${inspection.asset_items?.asset_id || 'N/A'}</td>
+          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
+          <td width="19%" style="${cellStyle}">${wrapForEmail(inspection.asset_items?.name || 'N/A', 20)}</td>
+          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
+          <td width="34%" style="${cellStyle}">${wrapForEmail(inspection.inspection_types?.name || 'N/A', 28)}</td>
+          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
+          <td width="14%" style="${cellStyle}">${formatDate(completedSource)}</td>
+          <td width="2%" style="border:none;padding:0;">&nbsp;</td>
+          <td width="14%" style="${cellStyle}">${daysSinceCompleted}</td>
         </tr>
       `
     }).join('')
@@ -292,23 +305,20 @@ serve(async (req) => {
       <h3 style="${sectionTitleStyle}">1) Inspections due in the next 14 days (${(dueInspections || []).length})</h3>
       ${dueRowsHtml
         ? `<table border="1" cellspacing="0" cellpadding="10" width="100%" style="${tableStyle}">
-            <colgroup>
-              <col style="width:12%;" />
-              <col style="width:22%;" />
-              <col style="width:34%;" />
-              <col style="width:16%;" />
-              <col style="width:16%;" />
-            </colgroup>
             <thead>
               <tr>
-                <th style="${headerCellStyle}">Asset ID</th>
-                <th style="${headerCellStyle}">Asset Name</th>
-                <th style="${headerCellStyle}">Inspection Type</th>
-                <th style="${headerCellStyle}">Due Date</th>
-                <th style="${headerCellStyle}">Status</th>
+                <th width="11%" style="${headerCellStyle}">Asset ID</th>
+                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
+                <th width="18%" style="${headerCellStyle}">Asset Name</th>
+                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
+                <th width="37%" style="${headerCellStyle}">Inspection Type</th>
+                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
+                <th width="14%" style="${headerCellStyle}">Due Date</th>
+                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
+                <th width="12%" style="${headerCellStyle}">Status</th>
               </tr>
             </thead>
-            <tbody>${dueRowsHtml.replaceAll('<td>', `<td style="${cellStyle}">`)}</tbody>
+            <tbody>${dueRowsHtml}</tbody>
           </table>`
         : '<p style="margin:8px 0 20px 0;">None.</p>'}
       </div>
@@ -317,25 +327,22 @@ serve(async (req) => {
       <h3 style="${sectionTitleStyle}">2) Inspections on hold (${(onHoldInspections || []).length})</h3>
       ${onHoldRowsHtml
         ? `<table border="1" cellspacing="0" cellpadding="10" width="100%" style="${tableStyle}">
-            <colgroup>
-              <col style="width:9%;" />
-              <col style="width:14%;" />
-              <col style="width:19%;" />
-              <col style="width:11%;" />
-              <col style="width:31%;" />
-              <col style="width:16%;" />
-            </colgroup>
             <thead>
               <tr>
-                <th style="${headerCellStyle}">Asset ID</th>
-                <th style="${headerCellStyle}">Asset Name</th>
-                <th style="${headerCellStyle}">Inspection Type</th>
-                <th style="${headerCellStyle}">Due Date</th>
-                <th style="${headerCellStyle}">Comment</th>
-                <th style="${headerCellStyle}">Placed On Hold By</th>
+                <th width="8%" style="${headerCellStyle}">Asset ID</th>
+                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
+                <th width="12%" style="${headerCellStyle}">Asset Name</th>
+                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
+                <th width="18%" style="${headerCellStyle}">Inspection Type</th>
+                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
+                <th width="10%" style="${headerCellStyle}">Due Date</th>
+                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
+                <th width="30%" style="${headerCellStyle}">Comment</th>
+                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
+                <th width="12%" style="${headerCellStyle}">Placed On Hold By</th>
               </tr>
             </thead>
-            <tbody>${onHoldRowsHtml.replaceAll('<td>', `<td style="${cellStyle}">`)}</tbody>
+            <tbody>${onHoldRowsHtml}</tbody>
           </table>`
         : '<p style="margin:8px 0 20px 0;">None.</p>'}
       </div>
@@ -344,23 +351,20 @@ serve(async (req) => {
       <h3 style="${sectionTitleStyle}">3) Waiting for certs (${(waitingCertsInspections || []).length})</h3>
       ${waitingRowsHtml
         ? `<table border="1" cellspacing="0" cellpadding="10" width="100%" style="${tableStyle}">
-            <colgroup>
-              <col style="width:12%;" />
-              <col style="width:21%;" />
-              <col style="width:32%;" />
-              <col style="width:17%;" />
-              <col style="width:18%;" />
-            </colgroup>
             <thead>
               <tr>
-                <th style="${headerCellStyle}">Asset ID</th>
-                <th style="${headerCellStyle}">Asset Name</th>
-                <th style="${headerCellStyle}">Inspection Type</th>
-                <th style="${headerCellStyle}">Completed Date</th>
-                <th style="${headerCellStyle}">Days Since Completed</th>
+                <th width="11%" style="${headerCellStyle}">Asset ID</th>
+                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
+                <th width="19%" style="${headerCellStyle}">Asset Name</th>
+                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
+                <th width="34%" style="${headerCellStyle}">Inspection Type</th>
+                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
+                <th width="14%" style="${headerCellStyle}">Completed Date</th>
+                <th width="2%" style="border:none;padding:0;">&nbsp;</th>
+                <th width="14%" style="${headerCellStyle}">Days Since Completed</th>
               </tr>
             </thead>
-            <tbody>${waitingRowsHtml.replaceAll('<td>', `<td style="${cellStyle}">`)}</tbody>
+            <tbody>${waitingRowsHtml}</tbody>
           </table>`
         : '<p style="margin:8px 0 20px 0;">None.</p>'}
       </div>
