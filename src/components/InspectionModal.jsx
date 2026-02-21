@@ -32,6 +32,10 @@ export default function InspectionModal({
   const [logsError, setLogsError] = useState(null)
   const [logUsers, setLogUsers] = useState({})
   const [initialData, setInitialData] = useState(null)
+  const [showRepeatOptions, setShowRepeatOptions] = useState(false)
+  const [repeatPromptShown, setRepeatPromptShown] = useState(false)
+  const [nextInspectionFrequency, setNextInspectionFrequency] = useState('')
+  const [sendingAlert, setSendingAlert] = useState(false)
 
   useEffect(() => {
     if (inspection) {
@@ -53,8 +57,78 @@ export default function InspectionModal({
       }
       setFormData(initial)
       setInitialData(initial)
+      setShowRepeatOptions(false)
+      setRepeatPromptShown(false)
+      setNextInspectionFrequency('')
     }
   }, [inspection])
+
+  const frequencyConfig = {
+    monthly: { months: 1, futureCount: 6 },
+    quarterly: { months: 3, futureCount: 3 },
+    six_monthly: { months: 6, futureCount: 2 },
+    yearly: { months: 12, futureCount: 1 },
+    two_yearly: { months: 24, futureCount: 1 },
+  }
+
+  const addMonths = (date, monthsToAdd) => {
+    const next = new Date(date)
+    next.setMonth(next.getMonth() + monthsToAdd)
+    return next
+  }
+
+  const formatDateForDb = (date) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const maybePromptRepeatInspection = () => {
+    if (isCompleted || formData.next_inspection_na || repeatPromptShown) return
+    const createRepeat = window.confirm('Would you like to create a repeat inspection?')
+    setShowRepeatOptions(createRepeat)
+    if (!createRepeat) {
+      setNextInspectionFrequency('')
+    }
+    setRepeatPromptShown(true)
+  }
+
+  const sendAdminAlertEmail = async () => {
+    if (!inspection?.id) return
+
+    setSendingAlert(true)
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Missing Supabase environment variables for function invocation')
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-inspection-reminders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseAnonKey,
+        },
+        body: JSON.stringify({ inspection_id: inspection.id, trigger: 'manual_alert' }),
+      })
+
+      const responseBody = await response.json().catch(() => ({}))
+      if (!response.ok || responseBody?.error) {
+        throw new Error(responseBody?.error || 'Failed to send admin alert email')
+      }
+
+      logInspectionAction('alert_sent', 'Manual admin reminder email triggered from inspection modal.')
+      alert('Admin alert email sent.')
+    } catch (error) {
+      console.error('Error sending admin alert email:', error)
+      alert('Error sending admin alert email: ' + (error.message || 'Unknown error'))
+    } finally {
+      setSendingAlert(false)
+    }
+  }
 
   const certsUrl =
     formData.certs_link ||
@@ -200,6 +274,11 @@ export default function InspectionModal({
       return
     }
 
+    if (showRepeatOptions && !nextInspectionFrequency) {
+      alert('Please select a repeat frequency or choose No when prompted for repeat inspection.')
+      return
+    }
+
     setLoading(true)
     try {
       // Persist all current form values along with the completed status
@@ -221,6 +300,43 @@ export default function InspectionModal({
         .eq('id', inspection.id)
 
       if (error) throw error
+
+      if (
+        showRepeatOptions &&
+        nextInspectionFrequency &&
+        formData.next_inspection_date &&
+        !formData.next_inspection_na
+      ) {
+        const config = frequencyConfig[nextInspectionFrequency]
+        if (config) {
+          const startDate = new Date(`${formData.next_inspection_date}T00:00:00`)
+          const dueDates = [formatDateForDb(startDate)]
+          for (let index = 1; index <= config.futureCount; index += 1) {
+            const futureDate = addMonths(startDate, config.months * index)
+            dueDates.push(formatDateForDb(futureDate))
+          }
+
+          const futurePayloads = dueDates.map((dueDate) => ({
+            asset_id: inspection.asset_id,
+            inspection_type_id: inspection.inspection_type_id,
+            due_date: dueDate,
+            status: 'pending',
+            notes: inspection.notes || null,
+            assigned_to: inspection.assigned_to || null,
+          }))
+
+          const { error: futureError } = await supabase
+            .from('inspections')
+            .insert(futurePayloads)
+
+          if (futureError) throw futureError
+
+          logInspectionAction(
+            'created',
+            `Created repeat inspections from modal using ${nextInspectionFrequency.replace('_', ' ')} frequency.`
+          )
+        }
+      }
 
       // Log completion
       logInspectionAction('completed', 'Inspection marked as complete in modal.')
@@ -481,9 +597,28 @@ export default function InspectionModal({
               id="next_inspection_date"
               type="date"
               value={formData.next_inspection_date}
+              onFocus={maybePromptRepeatInspection}
               onChange={(e) => setFormData({ ...formData, next_inspection_date: e.target.value })}
               disabled={isCompleted}
             />
+          )}
+          {showRepeatOptions && !formData.next_inspection_na && (
+            <div style={{ marginTop: '10px' }}>
+              <label htmlFor="next_inspection_frequency">Repeat Frequency</label>
+              <select
+                id="next_inspection_frequency"
+                value={nextInspectionFrequency}
+                onChange={(e) => setNextInspectionFrequency(e.target.value)}
+                disabled={isCompleted}
+              >
+                <option value="">Select frequency</option>
+                <option value="monthly">Monthly (next 6)</option>
+                <option value="quarterly">Quarterly (next 3)</option>
+                <option value="six_monthly">6 Monthly (next 2)</option>
+                <option value="yearly">Yearly (next 1)</option>
+                <option value="two_yearly">Two Yearly (next 1)</option>
+              </select>
+            </div>
           )}
         </div>
 
@@ -672,6 +807,14 @@ export default function InspectionModal({
                     Create inspection checklist
                   </button>
                 )}
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={sendAdminAlertEmail}
+                  disabled={sendingAlert}
+                >
+                  {sendingAlert ? 'Sending alert...' : 'Alert Admin'}
+                </button>
               </div>
               {hasChecklist && checklistStatus && (
                 <div style={{ fontSize: '0.9rem', color: '#555' }}>

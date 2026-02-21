@@ -108,6 +108,7 @@ serve(async (req) => {
     // daily-cron behaviour when no body is provided.
     const body = await req.json().catch(() => null as any)
     const singleInspectionId = body?.inspection_id || body?.inspectionId || null
+    const triggerType = body?.trigger || null
 
     // Build base query for pending inspections
     let inspectionsQuery = supabaseClient
@@ -151,14 +152,62 @@ serve(async (req) => {
       const dueDate = new Date(inspection.due_date)
       const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 
+      if (singleInspectionId && triggerType === 'manual_alert') {
+        const daysLabel =
+          daysUntilDue < 0
+            ? `${Math.abs(daysUntilDue)} day${Math.abs(daysUntilDue) === 1 ? '' : 's'} overdue`
+            : daysUntilDue === 0
+              ? 'due today'
+              : `${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'} until due`
+
+        const emailSubject = `Inspection alert: ${inspection.asset_items?.asset_id} (${daysLabel})`
+        const emailBody = `
+          <h2>Inspection Alert</h2>
+          <p>An inspection alert has been triggered from the inspection modal.</p>
+          <ul>
+            <li><strong>Asset ID:</strong> ${inspection.asset_items?.asset_id}</li>
+            <li><strong>Asset Name:</strong> ${inspection.asset_items?.name}</li>
+            <li><strong>Location:</strong> ${inspection.asset_items?.location || 'N/A'}</li>
+            <li><strong>Inspection Type:</strong> ${inspection.inspection_types?.name}</li>
+            <li><strong>Due Date:</strong> ${new Date(inspection.due_date).toLocaleDateString('en-GB')}</li>
+            <li><strong>Status:</strong> ${daysLabel}</li>
+            <li><strong>Company Assigned To:</strong> ${inspection.assigned_to || 'N/A'}</li>
+            <li><strong>Notes:</strong> ${inspection.notes || 'N/A'}</li>
+          </ul>
+          <p>
+            <a
+              href="${portalUrl}"
+              target="_blank"
+              rel="noopener noreferrer"
+              style="color:#1155cc;text-decoration:underline;"
+            >
+              Open Sitebatch Inspections Portal
+            </a>
+            <br />
+            ${portalUrl}
+          </p>
+        `
+
+        await sendEmail(emailSubject, emailBody)
+
+        emailsSent.push({
+          inspection_id: inspection.id,
+          days_before: null,
+          subject: emailSubject,
+        })
+
+        continue
+      }
+
       // Create reminders at 30, 14, 7, and 1 day(s) before due date
       const reminderDays = [30, 14, 7, 1]
+      let inspectionEmailSent = false
       
       for (const days of reminderDays) {
         // Only care about inspections that are within this reminder window
         if (daysUntilDue > days) continue
 
-        const shouldSendToday = daysUntilDue === days
+        const shouldSendToday = daysUntilDue === days && triggerType !== 'created'
 
         // Check if reminder already exists
         const { data: existingReminder } = await supabaseClient
@@ -238,6 +287,90 @@ serve(async (req) => {
             inspection_id: inspection.id,
             days_before: days,
             subject: emailSubject
+          })
+          inspectionEmailSent = true
+        }
+      }
+
+      // For newly created inspections already inside the 30-day window,
+      // send an immediate informational email once with the exact days until due.
+      if (
+        singleInspectionId &&
+        triggerType === 'created' &&
+        daysUntilDue >= 0 &&
+        daysUntilDue <= 30 &&
+        !inspectionEmailSent
+      ) {
+        const { data: existingCreatedReminder } = await supabaseClient
+          .from('inspection_reminders')
+          .select('id, sent')
+          .eq('inspection_id', inspection.id)
+          .eq('days_before', 0)
+          .single()
+
+        let createdReminderRecord = existingCreatedReminder
+
+        if (!createdReminderRecord) {
+          const { data: newCreatedReminder, error: createdReminderError } = await supabaseClient
+            .from('inspection_reminders')
+            .insert({
+              inspection_id: inspection.id,
+              reminder_date: todayStr,
+              days_before: 0,
+              sent: false,
+            })
+            .select()
+            .single()
+
+          if (!createdReminderError && newCreatedReminder) {
+            remindersCreated.push(newCreatedReminder)
+            createdReminderRecord = newCreatedReminder
+          }
+        }
+
+        if (createdReminderRecord && !createdReminderRecord.sent) {
+          const emailSubject = `New inspection created - due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}: ${inspection.asset_items?.asset_id}`
+          const emailBody = `
+            <h2>New Inspection Created</h2>
+            <p>A new inspection has been created and is due within the configured reminder window.</p>
+            <ul>
+              <li><strong>Asset ID:</strong> ${inspection.asset_items?.asset_id}</li>
+              <li><strong>Asset Name:</strong> ${inspection.asset_items?.name}</li>
+              <li><strong>Location:</strong> ${inspection.asset_items?.location || 'N/A'}</li>
+              <li><strong>Inspection Type:</strong> ${inspection.inspection_types?.name}</li>
+              <li><strong>Due Date:</strong> ${new Date(inspection.due_date).toLocaleDateString('en-GB')}</li>
+              <li><strong>Days Until Due:</strong> ${daysUntilDue}</li>
+              <li><strong>Company Assigned To:</strong> ${inspection.assigned_to || 'N/A'}</li>
+              <li><strong>Notes:</strong> ${inspection.notes || 'N/A'}</li>
+            </ul>
+            <p>
+              <a
+                href="${portalUrl}"
+                target="_blank"
+                rel="noopener noreferrer"
+                style="color:#1155cc;text-decoration:underline;"
+              >
+                Open Sitebatch Inspections Portal
+              </a>
+              <br />
+              ${portalUrl}
+            </p>
+          `
+
+          await sendEmail(emailSubject, emailBody)
+
+          await supabaseClient
+            .from('inspection_reminders')
+            .update({
+              sent: true,
+              sent_at: new Date().toISOString(),
+            })
+            .eq('id', createdReminderRecord.id)
+
+          emailsSent.push({
+            inspection_id: inspection.id,
+            days_before: 0,
+            subject: emailSubject,
           })
         }
       }
