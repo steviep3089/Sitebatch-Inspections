@@ -246,40 +246,65 @@ serve(async (req) => {
     }).join('')
 
     const reportDate = new Date().toLocaleDateString('en-GB')
+    const tableStyle = 'width:100%;border-collapse:collapse;margin:8px 0 22px 0;font-family:Arial,sans-serif;font-size:14px;line-height:1.4;'
+    const headerCellStyle = 'padding:10px 8px;border:1px solid #d8d8d8;background:#f5f6f8;text-align:left;vertical-align:top;'
+    const cellStyle = 'padding:10px 8px;border:1px solid #e1e1e1;text-align:left;vertical-align:top;'
+    const sectionTitleStyle = 'margin:26px 0 10px 0;font-family:Arial,sans-serif;'
 
     const html = `
-      <h2>Weekly Sitebatch Inspection Report</h2>
-      <p><strong>Report date:</strong> ${reportDate}</p>
+      <div style="font-family:Arial,sans-serif;color:#1f2937;max-width:1100px;">
+      <h2 style="margin:0 0 12px 0;">Weekly Sitebatch Inspection Report</h2>
+      <p style="margin:0 0 18px 0;"><strong>Report date:</strong> ${reportDate}</p>
 
-      <h3>1) Inspections due in the next 14 days (${(dueInspections || []).length})</h3>
+      <h3 style="${sectionTitleStyle}">1) Inspections due in the next 14 days (${(dueInspections || []).length})</h3>
       ${dueRowsHtml
-        ? `<table border="1" cellspacing="0" cellpadding="6">
+        ? `<table style="${tableStyle}">
             <thead>
-              <tr><th>Asset ID</th><th>Asset Name</th><th>Inspection Type</th><th>Due Date</th><th>Status</th></tr>
+              <tr>
+                <th style="${headerCellStyle}">Asset ID</th>
+                <th style="${headerCellStyle}">Asset Name</th>
+                <th style="${headerCellStyle}">Inspection Type</th>
+                <th style="${headerCellStyle}">Due Date</th>
+                <th style="${headerCellStyle}">Status</th>
+              </tr>
             </thead>
-            <tbody>${dueRowsHtml}</tbody>
+            <tbody>${dueRowsHtml.replaceAll('<td>', `<td style="${cellStyle}">`)}</tbody>
           </table>`
-        : '<p>None.</p>'}
+        : '<p style="margin:8px 0 20px 0;">None.</p>'}
 
-      <h3>2) Inspections on hold (${(onHoldInspections || []).length})</h3>
+      <h3 style="${sectionTitleStyle}">2) Inspections on hold (${(onHoldInspections || []).length})</h3>
       ${onHoldRowsHtml
-        ? `<table border="1" cellspacing="0" cellpadding="6">
+        ? `<table style="${tableStyle}">
             <thead>
-              <tr><th>Asset ID</th><th>Asset Name</th><th>Inspection Type</th><th>Due Date</th><th>Comment</th><th>Placed On Hold By</th></tr>
+              <tr>
+                <th style="${headerCellStyle}">Asset ID</th>
+                <th style="${headerCellStyle}">Asset Name</th>
+                <th style="${headerCellStyle}">Inspection Type</th>
+                <th style="${headerCellStyle}">Due Date</th>
+                <th style="${headerCellStyle}">Comment</th>
+                <th style="${headerCellStyle}">Placed On Hold By</th>
+              </tr>
             </thead>
-            <tbody>${onHoldRowsHtml}</tbody>
+            <tbody>${onHoldRowsHtml.replaceAll('<td>', `<td style="${cellStyle}">`)}</tbody>
           </table>`
-        : '<p>None.</p>'}
+        : '<p style="margin:8px 0 20px 0;">None.</p>'}
 
-      <h3>3) Waiting for certs (${(waitingCertsInspections || []).length})</h3>
+      <h3 style="${sectionTitleStyle}">3) Waiting for certs (${(waitingCertsInspections || []).length})</h3>
       ${waitingRowsHtml
-        ? `<table border="1" cellspacing="0" cellpadding="6">
+        ? `<table style="${tableStyle}">
             <thead>
-              <tr><th>Asset ID</th><th>Asset Name</th><th>Inspection Type</th><th>Completed Date</th><th>Days Since Completed</th></tr>
+              <tr>
+                <th style="${headerCellStyle}">Asset ID</th>
+                <th style="${headerCellStyle}">Asset Name</th>
+                <th style="${headerCellStyle}">Inspection Type</th>
+                <th style="${headerCellStyle}">Completed Date</th>
+                <th style="${headerCellStyle}">Days Since Completed</th>
+              </tr>
             </thead>
-            <tbody>${waitingRowsHtml}</tbody>
+            <tbody>${waitingRowsHtml.replaceAll('<td>', `<td style="${cellStyle}">`)}</tbody>
           </table>`
-        : '<p>None.</p>'}
+        : '<p style="margin:8px 0 20px 0;">None.</p>'}
+      </div>
     `
 
     const subject = `Weekly Inspection Report - ${reportDate}`
