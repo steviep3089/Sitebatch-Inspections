@@ -37,6 +37,13 @@ export default function InspectionModal({
   const [nextInspectionFrequency, setNextInspectionFrequency] = useState('')
   const [sendingAlert, setSendingAlert] = useState(false)
 
+  const createRecurringGroupId = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID()
+    }
+    return `recurring-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  }
+
   useEffect(() => {
     if (inspection) {
       const initial = {
@@ -82,6 +89,38 @@ export default function InspectionModal({
     const month = String(date.getMonth() + 1).padStart(2, '0')
     const day = String(date.getDate()).padStart(2, '0')
     return `${year}-${month}-${day}`
+  }
+
+  const syncFutureRecurringDueDates = async ({
+    recurringGroupId,
+    currentSequence,
+    completionDate,
+    frequencyMonths,
+  }) => {
+    if (!recurringGroupId || frequencyMonths == null) return
+
+    const { data: futureRows, error: futureRowsError } = await supabase
+      .from('inspections')
+      .select('id, recurrence_sequence')
+      .eq('recurrence_group_id', recurringGroupId)
+      .gt('recurrence_sequence', currentSequence)
+      .order('recurrence_sequence', { ascending: true })
+
+    if (futureRowsError) throw futureRowsError
+
+    const updates = (futureRows || []).map((row) => {
+      const interval = Math.max(1, (row.recurrence_sequence ?? currentSequence + 1) - currentSequence)
+      const nextDueDate = addMonths(completionDate, frequencyMonths * interval)
+
+      return supabase
+        .from('inspections')
+        .update({ due_date: formatDateForDb(nextDueDate) })
+        .eq('id', row.id)
+    })
+
+    const results = await Promise.all(updates)
+    const firstError = results.find((r) => r.error)?.error
+    if (firstError) throw firstError
   }
 
   const maybePromptRepeatInspection = () => {
@@ -281,6 +320,24 @@ export default function InspectionModal({
 
     setLoading(true)
     try {
+      const selectedRepeatConfig = showRepeatOptions
+        ? frequencyConfig[nextInspectionFrequency]
+        : null
+
+      let recurrenceGroupId = inspection.recurrence_group_id || null
+      let recurrenceFrequencyMonths = inspection.recurrence_frequency_months ?? null
+      let recurrenceSequence = inspection.recurrence_sequence ?? null
+
+      if (selectedRepeatConfig) {
+        if (!recurrenceGroupId) {
+          recurrenceGroupId = createRecurringGroupId()
+        }
+        recurrenceFrequencyMonths = selectedRepeatConfig.months
+        if (recurrenceSequence == null) {
+          recurrenceSequence = 0
+        }
+      }
+
       // Persist all current form values along with the completed status
       const cleanedData = {
         ...formData,
@@ -292,6 +349,9 @@ export default function InspectionModal({
         assigned_to: formData.assigned_to || null,
         notes: formData.notes || null,
         status: 'completed',
+        recurrence_group_id: recurrenceGroupId,
+        recurrence_frequency_months: recurrenceFrequencyMonths,
+        recurrence_sequence: recurrenceSequence,
       }
 
       const { error } = await supabase
@@ -308,7 +368,17 @@ export default function InspectionModal({
         !formData.next_inspection_na
       ) {
         const config = frequencyConfig[nextInspectionFrequency]
-        if (config) {
+        if (config && recurrenceGroupId != null && recurrenceSequence != null) {
+          const { data: existingFutureRows, error: existingFutureError } = await supabase
+            .from('inspections')
+            .select('id')
+            .eq('recurrence_group_id', recurrenceGroupId)
+            .gt('recurrence_sequence', recurrenceSequence)
+            .limit(1)
+
+          if (existingFutureError) throw existingFutureError
+
+          if ((existingFutureRows || []).length === 0) {
           const startDate = new Date(`${formData.next_inspection_date}T00:00:00`)
           const dueDates = [formatDateForDb(startDate)]
           for (let index = 1; index <= config.futureCount; index += 1) {
@@ -316,26 +386,45 @@ export default function InspectionModal({
             dueDates.push(formatDateForDb(futureDate))
           }
 
-          const futurePayloads = dueDates.map((dueDate) => ({
-            asset_id: inspection.asset_id,
-            inspection_type_id: inspection.inspection_type_id,
-            due_date: dueDate,
-            status: 'pending',
-            notes: inspection.notes || null,
-            assigned_to: inspection.assigned_to || null,
-          }))
+            const futurePayloads = dueDates.map((dueDate, index) => ({
+              asset_id: inspection.asset_id,
+              inspection_type_id: inspection.inspection_type_id,
+              due_date: dueDate,
+              status: 'pending',
+              notes: inspection.notes || null,
+              assigned_to: inspection.assigned_to || null,
+              recurrence_group_id: recurrenceGroupId,
+              recurrence_frequency_months: config.months,
+              recurrence_sequence: recurrenceSequence + index + 1,
+            }))
 
-          const { error: futureError } = await supabase
-            .from('inspections')
-            .insert(futurePayloads)
+            const { error: futureError } = await supabase
+              .from('inspections')
+              .insert(futurePayloads)
 
-          if (futureError) throw futureError
+            if (futureError) throw futureError
 
-          logInspectionAction(
-            'created',
-            `Created repeat inspections from modal using ${nextInspectionFrequency.replace('_', ' ')} frequency.`
-          )
+            logInspectionAction(
+              'created',
+              `Created repeat inspections from modal using ${nextInspectionFrequency.replace('_', ' ')} frequency.`
+            )
+          }
         }
+      }
+
+      if (
+        recurrenceGroupId &&
+        recurrenceSequence != null &&
+        recurrenceFrequencyMonths != null &&
+        formData.date_completed
+      ) {
+        const completionDate = new Date(`${formData.date_completed}T00:00:00`)
+        await syncFutureRecurringDueDates({
+          recurringGroupId: recurrenceGroupId,
+          currentSequence: recurrenceSequence,
+          completionDate,
+          frequencyMonths: recurrenceFrequencyMonths,
+        })
       }
 
       // Log completion

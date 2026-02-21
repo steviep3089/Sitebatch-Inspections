@@ -55,6 +55,9 @@ export default function InspectionsList() {
           certs_link,
           certs_na,
           waiting_on_certs,
+          recurrence_group_id,
+          recurrence_sequence,
+          recurrence_frequency_months,
           defect_portal_actions,
           defect_portal_na,
           linked_group_id,
@@ -183,6 +186,13 @@ export default function InspectionsList() {
         return `linked-${Date.now()}-${Math.random().toString(16).slice(2)}`
       }
 
+      const createRecurringGroupId = () => {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          return crypto.randomUUID()
+        }
+        return `recurring-${Date.now()}-${Math.random().toString(16).slice(2)}`
+      }
+
       const linkedGroupId =
         selectedAssetIds.length > 1 ? createLinkedGroupId() : null
 
@@ -218,7 +228,11 @@ export default function InspectionsList() {
         }
       }
 
-      const payloads = dueDates.flatMap((dueDate) => {
+      const recurringGroupByAsset = new Map(
+        selectedAssetIds.map((assetId) => [assetId, selectedFrequency ? createRecurringGroupId() : null])
+      )
+
+      const payloads = dueDates.flatMap((dueDate, sequenceIndex) => {
         const perDateLinkedGroupId = selectedAssetIds.length > 1 ? createLinkedGroupId() : linkedGroupId
         return selectedAssetIds.map((assetId) => ({
           asset_id: assetId,
@@ -228,6 +242,9 @@ export default function InspectionsList() {
           notes: formData.notes || null,
           assigned_to: formData.assigned_to || null,
           linked_group_id: perDateLinkedGroupId,
+          recurrence_group_id: recurringGroupByAsset.get(assetId),
+          recurrence_sequence: selectedFrequency ? sequenceIndex : null,
+          recurrence_frequency_months: selectedFrequency ? selectedFrequency.months : null,
         }))
       })
 
@@ -237,6 +254,41 @@ export default function InspectionsList() {
         .select()
 
       if (error) throw error
+
+      // Trigger immediate notification for any newly created inspections
+      // that are already due within the 30-day reminder window.
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+        if (supabaseUrl && supabaseAnonKey) {
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+
+          const dueSoonCreatedInspections = (newInspections || []).filter((inspection) => {
+            if (!inspection?.due_date) return false
+            const dueDate = new Date(`${inspection.due_date}T00:00:00`)
+            const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+            return diffDays >= 0 && diffDays <= 30
+          })
+
+          await Promise.all(
+            dueSoonCreatedInspections.map((inspection) =>
+              fetch(`${supabaseUrl}/functions/v1/send-inspection-reminders`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  apikey: supabaseAnonKey,
+                },
+                body: JSON.stringify({ inspection_id: inspection.id, trigger: 'created' }),
+              })
+            )
+          )
+        }
+      } catch (invokeError) {
+        console.error('Error invoking send-inspection-reminders for created inspections:', invokeError)
+        // Non-fatal: inspection creation already succeeded.
+      }
 
       // Log creation of the inspection
       try {
