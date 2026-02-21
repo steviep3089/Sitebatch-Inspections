@@ -364,7 +364,13 @@ export default function InspectionsList() {
       if (fetchError) throw fetchError
 
       // Validate three requirements
-      const hasNextInspection = inspection.next_inspection_na || inspection.next_inspection_date
+      const isRecurringLinked =
+        !!inspection?.recurrence_group_id &&
+        inspection?.recurrence_frequency_months != null
+      const hasNextInspection =
+        isRecurringLinked ||
+        inspection.next_inspection_na ||
+        inspection.next_inspection_date
       const hasCerts = inspection.certs_na || (inspection.certs_received && inspection.certs_link)
       const hasDefectPortal = inspection.defect_portal_actions || inspection.defect_portal_na
 

@@ -189,8 +189,15 @@ export default function InspectionModal({
   const canMarkComplete = () => {
     if (inspection?.status === 'completed') return false
 
+    const isRecurringLinked =
+      !!inspection?.recurrence_group_id &&
+      inspection?.recurrence_frequency_months != null
+
     // Check 1: Date Next Inspection Required - must have date OR N/A checked
-    const nextInspectionValid = formData.next_inspection_na || formData.next_inspection_date
+    const nextInspectionValid =
+      isRecurringLinked ||
+      formData.next_inspection_na ||
+      formData.next_inspection_date
     
     // Check 2: Certs Received - must be ticked AND link provided
     const certsValid =
@@ -302,8 +309,12 @@ export default function InspectionModal({
   const handleMarkComplete = async () => {
     if (!canMarkComplete()) {
       let messages = []
+
+      const isRecurringLinked =
+        !!inspection?.recurrence_group_id &&
+        inspection?.recurrence_frequency_months != null
       
-      if (!formData.next_inspection_na && !formData.next_inspection_date) {
+      if (!isRecurringLinked && !formData.next_inspection_na && !formData.next_inspection_date) {
         messages.push('- Date Next Inspection is required (enter date or mark N/A)')
       }
       
@@ -342,6 +353,9 @@ export default function InspectionModal({
       let recurrenceGroupId = inspection.recurrence_group_id || null
       let recurrenceFrequencyMonths = inspection.recurrence_frequency_months ?? null
       let recurrenceSequence = inspection.recurrence_sequence ?? null
+      const isRecurringLinked =
+        !!inspection?.recurrence_group_id &&
+        inspection?.recurrence_frequency_months != null
 
       if (selectedRepeatConfig) {
         if (!recurrenceGroupId) {
@@ -353,13 +367,33 @@ export default function InspectionModal({
         }
       }
 
+      let resolvedNextInspectionDate = formData.next_inspection_date || null
+      if (
+        isRecurringLinked &&
+        !resolvedNextInspectionDate &&
+        !formData.next_inspection_na &&
+        recurrenceGroupId
+      ) {
+        const { data: nextRecurringInspection, error: nextRecurringError } = await supabase
+          .from('inspections')
+          .select('due_date')
+          .eq('recurrence_group_id', recurrenceGroupId)
+          .gt('recurrence_sequence', recurrenceSequence ?? -1)
+          .order('recurrence_sequence', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+
+        if (nextRecurringError) throw nextRecurringError
+        resolvedNextInspectionDate = nextRecurringInspection?.due_date || null
+      }
+
       // Persist all current form values along with the completed status
       const cleanedData = {
         ...formData,
         due_date: formData.due_date || null,
         completed_date: formData.completed_date || null,
         date_completed: formData.date_completed || null,
-        next_inspection_date: formData.next_inspection_date || null,
+        next_inspection_date: resolvedNextInspectionDate,
         certs_link: formData.certs_link || null,
         assigned_to: formData.assigned_to || null,
         notes: formData.notes || null,
@@ -752,7 +786,7 @@ export default function InspectionModal({
 
         <div className="form-group">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <label htmlFor="next_inspection_date">Date Next Inspection Required *</label>
+            <label htmlFor="next_inspection_date">Date Next Inspection Required {inspection?.recurrence_group_id && inspection?.recurrence_frequency_months != null ? '' : '*'}</label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.9rem' }}>
               <input
                 type="checkbox"
@@ -1076,7 +1110,9 @@ export default function InspectionModal({
                   <strong>Required to complete:</strong>
                   <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
                     <li>Date Completed</li>
-                    <li>Date Next Inspection (enter date or mark N/A)</li>
+                    {!(inspection?.recurrence_group_id && inspection?.recurrence_frequency_months != null) && (
+                      <li>Date Next Inspection (enter date or mark N/A)</li>
+                    )}
                     <li>Certs Received (tick and add Google Drive link) or Certs N/A</li>
                     <li>Defect Portal (select "Actions created" or "N/A")</li>
                   </ul>
