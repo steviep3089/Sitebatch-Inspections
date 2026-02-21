@@ -67,6 +67,9 @@ export default function AdminTools() {
         <Link className="btn btn-secondary" to="/user-requests">
           User Requests
         </Link>
+        <Link className="btn btn-secondary" to="/reports">
+          Reports
+        </Link>
       </div>
     </div>
   )

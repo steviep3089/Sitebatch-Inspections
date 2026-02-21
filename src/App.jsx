@@ -20,6 +20,7 @@ import MyChecklists from './components/MyChecklists'
 import RequestItem from './components/RequestItem'
 import UserRequestInbox from './components/UserRequestInbox'
 import UserRequestsAdmin from './components/UserRequestsAdmin'
+import ReportsAdmin from './components/ReportsAdmin'
 
 function Logout() {
   useEffect(() => {
@@ -162,6 +163,7 @@ function App() {
             <Route path="/request-item" element={<RequestItem />} />
             <Route path="/user-request-inbox" element={<UserRequestInbox />} />
             <Route path="/user-requests" element={<UserRequestsAdmin />} />
+            <Route path="/reports" element={<ReportsAdmin />} />
             <Route path="/change-password" element={<ChangePassword />} />
             <Route path="/logout" element={<Logout />} />
             <Route path="*" element={<Navigate to="/" replace />} />

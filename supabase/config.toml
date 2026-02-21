@@ -1,2 +1,5 @@
 [functions.send-inspection-reminders]
 verify_jwt = false
+
+[functions.send-weekly-inspection-report]
+verify_jwt = false

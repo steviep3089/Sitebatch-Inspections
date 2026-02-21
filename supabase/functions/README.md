@@ -70,6 +70,23 @@ Uploads a user-selected certificate file directly to a configured Google Drive f
 supabase functions deploy upload-certs-to-drive
 ```
 
+### 5. send-weekly-inspection-report
+
+Sends a weekly summary report email to recipients configured in Admin Tools > Reports.
+
+**Functionality:**
+- Includes inspections due in the next 14 days
+- Includes inspections currently on hold with comment and who placed on hold
+- Includes inspections waiting for certs and days since inspection completed
+
+**Deploy:**
+```bash
+supabase functions deploy send-weekly-inspection-report
+```
+
+**Schedule (add to Supabase Dashboard):**
+- Run weekly on Monday at 8:00 AM: `0 8 * * 1`
+
 ## Setup Instructions
 
 1. **Deploy Functions:**
@@ -80,6 +97,7 @@ supabase functions deploy upload-certs-to-drive
   supabase functions deploy send-item-reminders
   supabase functions deploy update-overdue-inspections
    supabase functions deploy upload-certs-to-drive
+   supabase functions deploy send-weekly-inspection-report
    ```
 
 2. **Set up Cron Jobs:**
