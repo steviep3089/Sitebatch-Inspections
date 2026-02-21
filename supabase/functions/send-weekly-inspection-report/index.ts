@@ -226,6 +226,12 @@ serve(async (req) => {
 
     if (waitingError) throw waitingError
 
+  const tableStyle = 'width:100%;border-collapse:collapse;table-layout:fixed;margin:10px 0 0 0;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;border:1px solid #d9d9d9;'
+  const headerCellStyle = 'padding:12px 14px;border:1px solid #d8d8d8;background:#f3f4f6;text-align:left;vertical-align:top;font-weight:700;'
+  const cellStyle = 'padding:12px 14px;border:1px solid #e1e1e1;text-align:left;vertical-align:top;white-space:normal;word-break:break-word;overflow-wrap:anywhere;'
+  const sectionTitleStyle = 'margin:0 0 8px 0;font-family:Arial,sans-serif;'
+  const sectionWrapStyle = 'margin:24px 0;padding:14px 14px 18px 14px;border:1px solid #e5e7eb;background:#ffffff;'
+
     const dueRowsHtml = (dueInspections || []).map((inspection: any) => `
       <tr>
         <td width="11%" style="${cellStyle}">${inspection.asset_items?.asset_id || 'N/A'}</td>
@@ -288,11 +294,6 @@ serve(async (req) => {
     }).join('')
 
     const reportDate = new Date().toLocaleDateString('en-GB')
-    const tableStyle = 'width:100%;border-collapse:collapse;table-layout:fixed;margin:10px 0 0 0;font-family:Arial,sans-serif;font-size:15px;line-height:1.6;border:1px solid #d9d9d9;'
-    const headerCellStyle = 'padding:12px 14px;border:1px solid #d8d8d8;background:#f3f4f6;text-align:left;vertical-align:top;font-weight:700;'
-    const cellStyle = 'padding:12px 14px;border:1px solid #e1e1e1;text-align:left;vertical-align:top;white-space:normal;word-break:break-word;overflow-wrap:anywhere;'
-    const sectionTitleStyle = 'margin:0 0 8px 0;font-family:Arial,sans-serif;'
-    const sectionWrapStyle = 'margin:24px 0;padding:14px 14px 18px 14px;border:1px solid #e5e7eb;background:#ffffff;'
 
     const html = `
       <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="100%" style="width:100%;font-family:Arial,sans-serif;color:#1f2937;">
