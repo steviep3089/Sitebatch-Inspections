@@ -659,6 +659,7 @@ export default function InspectionModal({
                 border: 'none',
                 borderRadius: '999px',
                 padding: '6px 12px',
+                marginRight: '34px',
                 fontWeight: 700,
                 cursor: 'pointer',
               }}
