@@ -720,7 +720,22 @@ export default function InspectionsList() {
       fetchData()
     } catch (error) {
       console.error('Error uploading certificate:', error)
-      alert('Error uploading certificate: ' + (error.message || 'Unknown error'))
+      const rawMessage = error?.message || 'Unknown error'
+      const normalizedMessage = String(rawMessage).toLowerCase()
+
+      const isGoogleAuthTokenError =
+        normalizedMessage.includes('token has been expired or revoked') ||
+        normalizedMessage.includes('invalid_grant') ||
+        normalizedMessage.includes('oauth refresh token appears expired or revoked') ||
+        normalizedMessage.includes('no valid google auth method is available')
+
+      if (isGoogleAuthTokenError) {
+        alert(
+          'Certificate upload failed because Google auth has expired. Ask an admin to reconnect Google OAuth or update GOOGLE_OAUTH_REFRESH_TOKEN in Supabase secrets, then try again.'
+        )
+      } else {
+        alert('Error uploading certificate: ' + rawMessage)
+      }
     } finally {
       setUploadingCert(false)
     }

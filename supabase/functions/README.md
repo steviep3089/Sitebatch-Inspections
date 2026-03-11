@@ -126,8 +126,9 @@ Optional OAuth secrets for uploading into a specific user-owned My Drive folder:
 - `GOOGLE_OAUTH_CLIENT_SECRET`
 - `GOOGLE_OAUTH_REFRESH_TOKEN`
 
-When OAuth secrets are present, `upload-certs-to-drive` will use OAuth first.
-If OAuth secrets are missing, it falls back to service account auth.
+`upload-certs-to-drive` can use either service account auth or OAuth.
+If OAuth refresh token is expired/revoked, OAuth is skipped and service account auth is used when configured.
+If only OAuth is configured and token refresh fails, rotate/reconnect `GOOGLE_OAUTH_REFRESH_TOKEN`.
 
 Set them with:
 ```bash

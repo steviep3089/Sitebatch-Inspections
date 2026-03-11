@@ -127,7 +127,15 @@ const getAccessTokenFromRefreshToken = async () => {
 
   const tokenJson = await tokenResponse.json()
   if (!tokenResponse.ok || !tokenJson.access_token) {
-    throw new Error(tokenJson.error_description || tokenJson.error || 'Failed to obtain Google OAuth access token')
+    const oauthError = tokenJson?.error || ''
+    const oauthDescription = tokenJson?.error_description || tokenJson?.error || 'Failed to obtain Google OAuth access token'
+
+    if (oauthError === 'invalid_grant') {
+      console.warn('Google OAuth refresh token is expired/revoked. OAuth upload auth will be skipped.')
+      return null
+    }
+
+    throw new Error(oauthDescription)
   }
 
   return tokenJson.access_token as string
@@ -141,21 +149,38 @@ const getAvailableTokens = async () => {
     !!Deno.env.get('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY')
 
   const tokens: Array<{ source: TokenSource; token: string }> = []
+  const authErrors: string[] = []
 
   if (hasServiceAccount) {
-    tokens.push({
-      source: 'service_account',
-      token: await getAccessTokenFromServiceAccount(),
-    })
+    try {
+      tokens.push({
+        source: 'service_account',
+        token: await getAccessTokenFromServiceAccount(),
+      })
+    } catch (error) {
+      authErrors.push(`service_account: ${(error as Error).message}`)
+    }
   }
 
-  const oauthToken = await getAccessTokenFromRefreshToken()
-  if (oauthToken) {
-    tokens.push({ source: 'oauth', token: oauthToken })
+  try {
+    const oauthToken = await getAccessTokenFromRefreshToken()
+    if (oauthToken) {
+      tokens.push({ source: 'oauth', token: oauthToken })
+    }
+  } catch (error) {
+    authErrors.push(`oauth: ${(error as Error).message}`)
   }
 
   if (tokens.length === 0) {
-    throw new Error('No Google auth method configured. Set service account or OAuth secrets.')
+    const oauthRefreshTokenConfigured = !!Deno.env.get('GOOGLE_OAUTH_REFRESH_TOKEN')
+    if (oauthRefreshTokenConfigured) {
+      throw new Error(
+        'No valid Google auth method is available. OAuth refresh token appears expired or revoked. Reconnect Google OAuth (or rotate GOOGLE_OAUTH_REFRESH_TOKEN), or configure service account secrets.'
+      )
+    }
+
+    const details = authErrors.length ? ` Details: ${authErrors.join(' | ')}` : ''
+    throw new Error(`No Google auth method configured. Set service account or OAuth secrets.${details}`)
   }
 
   return tokens
