@@ -20,6 +20,9 @@
     },
     "upload-certs-to-drive": {
       "verify_jwt": false
+    },
+    "check-google-oauth-health": {
+      "verify_jwt": false
     }
   }
 }

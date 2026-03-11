@@ -87,6 +87,23 @@ supabase functions deploy send-weekly-inspection-report
 **Schedule (add to Supabase Dashboard):**
 - Run weekly on Monday at 8:00 AM: `0 8 * * 1`
 
+### 6. check-google-oauth-health
+
+Checks whether Google OAuth refresh token can still mint an access token for My Drive uploads.
+
+**Functionality:**
+- Validates `GOOGLE_OAUTH_REFRESH_TOKEN` by requesting a fresh Google access token
+- Performs a Google Drive API health call to confirm the token is usable
+- Sends an SMTP alert when the token is unhealthy (or optionally on success)
+
+**Deploy:**
+```bash
+supabase functions deploy check-google-oauth-health
+```
+
+**Schedule (add to Supabase Dashboard):**
+- Run weekly on Monday at 7:00 AM: `0 7 * * 1`
+
 ## Setup Instructions
 
 1. **Deploy Functions:**
@@ -98,6 +115,7 @@ supabase functions deploy send-weekly-inspection-report
   supabase functions deploy update-overdue-inspections
    supabase functions deploy upload-certs-to-drive
    supabase functions deploy send-weekly-inspection-report
+   supabase functions deploy check-google-oauth-health
    ```
 
 2. **Set up Cron Jobs:**
@@ -126,6 +144,9 @@ Optional OAuth secrets for uploading into a specific user-owned My Drive folder:
 - `GOOGLE_OAUTH_CLIENT_SECRET`
 - `GOOGLE_OAUTH_REFRESH_TOKEN`
 
+Additional requirement for `check-google-oauth-health` alerts:
+- `SMTP_TO` (comma-separated alert recipients)
+
 `upload-certs-to-drive` can use either service account auth or OAuth.
 If OAuth refresh token is expired/revoked, OAuth is skipped and service account auth is used when configured.
 If only OAuth is configured and token refresh fails, rotate/reconnect `GOOGLE_OAUTH_REFRESH_TOKEN`.
@@ -150,6 +171,10 @@ supabase functions serve send-inspection-reminders
 supabase functions serve send-item-reminders
 ```
 
+```bash
+supabase functions serve check-google-oauth-health
+```
+
 Then call it:
 ```bash
 curl -i --location --request POST 'http://localhost:54321/functions/v1/send-inspection-reminders' \
@@ -161,4 +186,11 @@ curl -i --location --request POST 'http://localhost:54321/functions/v1/send-insp
 curl -i --location --request POST 'http://localhost:54321/functions/v1/send-item-reminders' \
   --header 'Authorization: Bearer YOUR_ANON_KEY' \
   --header 'Content-Type: application/json'
+```
+
+```bash
+curl -i --location --request POST 'http://localhost:54321/functions/v1/check-google-oauth-health' \
+   --header 'Authorization: Bearer YOUR_ANON_KEY' \
+   --header 'Content-Type: application/json' \
+   --data '{"notify_on_success": false}'
 ```
