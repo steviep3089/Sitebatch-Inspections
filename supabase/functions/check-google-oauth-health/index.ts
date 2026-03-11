@@ -23,6 +23,8 @@ type HealthResult = {
   error?: string
   reason?: string
   expires_in?: number
+  oauth_email?: string
+  oauth_display_name?: string
   checked_at: string
 }
 
@@ -144,6 +146,8 @@ async function checkGoogleOauthRefreshToken(): Promise<HealthResult> {
     healthy: true,
     checked_at: checkedAt,
     expires_in: Number(tokenJson.expires_in || 0),
+    oauth_email: aboutJson?.user?.emailAddress || undefined,
+    oauth_display_name: aboutJson?.user?.displayName || undefined,
   }
 }
 
@@ -180,6 +184,8 @@ serve(async (req: Request) => {
         <ul>
           <li><strong>Status:</strong> ${result.healthy ? 'Healthy' : 'Unhealthy'}</li>
           <li><strong>Checked At (UTC):</strong> ${result.checked_at}</li>
+          <li><strong>OAuth Account:</strong> ${result.oauth_email || 'Unknown'}</li>
+          <li><strong>OAuth User Name:</strong> ${result.oauth_display_name || 'Unknown'}</li>
           <li><strong>Reason:</strong> ${result.reason || 'ok'}</li>
           <li><strong>Error:</strong> ${result.error || 'None'}</li>
         </ul>
