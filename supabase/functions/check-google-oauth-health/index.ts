@@ -25,6 +25,7 @@ type HealthResult = {
   expires_in?: number
   oauth_email?: string
   oauth_display_name?: string
+  oauth_scope?: string
   checked_at: string
 }
 
@@ -124,6 +125,9 @@ async function checkGoogleOauthRefreshToken(): Promise<HealthResult> {
 
   const accessToken = tokenJson.access_token as string
 
+  const tokenInfoResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`)
+  const tokenInfoJson = await tokenInfoResponse.json().catch(() => ({}))
+
   const aboutResponse = await fetch('https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress)', {
     method: 'GET',
     headers: {
@@ -148,6 +152,7 @@ async function checkGoogleOauthRefreshToken(): Promise<HealthResult> {
     expires_in: Number(tokenJson.expires_in || 0),
     oauth_email: aboutJson?.user?.emailAddress || undefined,
     oauth_display_name: aboutJson?.user?.displayName || undefined,
+    oauth_scope: tokenInfoJson?.scope || undefined,
   }
 }
 
@@ -186,6 +191,7 @@ serve(async (req: Request) => {
           <li><strong>Checked At (UTC):</strong> ${result.checked_at}</li>
           <li><strong>OAuth Account:</strong> ${result.oauth_email || 'Unknown'}</li>
           <li><strong>OAuth User Name:</strong> ${result.oauth_display_name || 'Unknown'}</li>
+          <li><strong>OAuth Scope:</strong> ${result.oauth_scope || 'Unknown'}</li>
           <li><strong>Reason:</strong> ${result.reason || 'ok'}</li>
           <li><strong>Error:</strong> ${result.error || 'None'}</li>
         </ul>
