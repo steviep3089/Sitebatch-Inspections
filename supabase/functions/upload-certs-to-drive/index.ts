@@ -183,7 +183,7 @@ const getAvailableTokens = async () => {
     throw new Error(`No Google auth method configured. Set service account or OAuth secrets.${details}`)
   }
 
-  return tokens
+  return { tokens, authErrors }
 }
 
 const parseFolderId = (folderUrl: string) => {
@@ -295,7 +295,7 @@ serve(async (req) => {
       )
     }
 
-    const availableTokens = await getAvailableTokens()
+    const { tokens: availableTokens, authErrors } = await getAvailableTokens()
     let activeToken = availableTokens[0]
     const parsedFolderId = parseFolderId(body.folder_url)
     let resolvedFolder: DriveFileMetadata
@@ -307,6 +307,19 @@ serve(async (req) => {
       const message = (error as Error).message || ''
 
       if (!fallback || !message.includes('not visible to the active upload account')) {
+        if (!fallback && message.includes('not visible to the active upload account')) {
+          const oauthSecretConfigured =
+            !!Deno.env.get('GOOGLE_OAUTH_CLIENT_ID') &&
+            !!Deno.env.get('GOOGLE_OAUTH_CLIENT_SECRET') &&
+            !!Deno.env.get('GOOGLE_OAUTH_REFRESH_TOKEN')
+
+          const diagnostics = authErrors.length ? ` Diagnostics: ${authErrors.join(' | ')}` : ''
+          const oauthHint = oauthSecretConfigured
+            ? ' OAuth secrets are configured but OAuth token could not be obtained at upload time.'
+            : ' OAuth secrets are not fully configured.'
+
+          throw new Error(`${message}.${oauthHint}${diagnostics}`)
+        }
         throw error
       }
 
